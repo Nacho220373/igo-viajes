@@ -1,0 +1,22 @@
+{
+  "name": "IGO Viajes",
+  "short_name": "IGO",
+  "description": "Tu portal de gestión de aventuras y viajes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e3a8a",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
