@@ -1,98 +1,131 @@
-import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { enviarPeticion } from '../services/api';
-import { useNavigate } from 'react-router-dom'; // <--- 1. IMPORTAR
-import { LogOut, Map, User as UserIcon, Calendar, ArrowRightCircle } from 'lucide-react';
+import { LogOut, ChevronDown, User, Briefcase, Shield } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
-export default function Dashboard() {
-  const { user, logout } = useAuth();
-  const [viajes, setViajes] = useState([]);
-  const [loadingViajes, setLoadingViajes] = useState(true);
-  const navigate = useNavigate(); // <--- 2. INICIALIZAR
+// IMPORTS DE LOS DASHBOARDS ESPECIALIZADOS
+import ClientDashboard from './client/ClientDashboard';
+import PassengerDashboard from './passenger/PassengerDashboard';
+import AdminDashboardContent from './admin/AdminDashboardContent'; 
+
+// Componente Interno: Selector de Perfiles
+const ProfileSwitcher = () => {
+  const { user, profiles, activeProfile, switchProfile, logout } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
 
   useEffect(() => {
-    const cargarViajes = async () => {
-      if (!user) return;
-      setLoadingViajes(true);
-      const respuesta = await enviarPeticion({
-        accion: 'obtenerViajes',
-        idUsuario: user.id,
-        rol: user.rol
-      });
-      if (respuesta.exito) {
-        setViajes(respuesta.datos);
-      }
-      setLoadingViajes(false);
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setIsOpen(false);
     };
-    cargarViajes();
-  }, [user]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  if (!activeProfile) return null;
+
+  const getIcon = (tipo) => {
+    if (tipo === 'Administrador') return <Shield size={16} />;
+    if (tipo === 'Cliente') return <Briefcase size={16} />;
+    return <User size={16} />;
+  };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1000px', width: '100%', margin: '0 auto' }}>
-      
-      {/* TARJETA DE BIENVENIDA (Igual que antes...) */}
-      <div className="login-card" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.8rem', color: '#1e3a8a' }}>Hola, {user?.nombre}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', color: '#6b7280' }}>
-            <UserIcon size={16} />
-            <span style={{ fontSize: '0.9rem' }}>{user?.rol}</span>
+    <div style={{ position: 'relative' }} ref={menuRef}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)} 
+        style={{ 
+          background: 'white', border: '1px solid #e2e8f0', padding: '8px 16px', 
+          borderRadius: '50px', cursor: 'pointer', display: 'flex', alignItems: 'center', 
+          gap: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', minWidth: '220px', justifyContent:'space-between'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left' }}>
+          <div style={{ color: 'var(--primary)' }}>{getIcon(activeProfile.tipo)}</div>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase' }}>{activeProfile.tipo}</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main)', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeProfile.nombre}</div>
           </div>
         </div>
-        <button onClick={logout} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
-          <LogOut size={18} /> Salir
-        </button>
-      </div>
+        <ChevronDown size={16} color="#64748b" />
+      </button>
 
-      <h2 style={{ color: 'white', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Map /> {user?.rol === 'Administrador' ? 'Todos los Viajes (Admin)' : 'Mis Aventuras'}
-      </h2>
-
-      {loadingViajes ? (
-        <div style={{ color: 'white', textAlign: 'center', padding: '40px', fontSize: '1.2rem' }}>🚀 Buscando tus viajes en la nube...</div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-          
-          {viajes.length === 0 && (
-            <div className="login-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>
-              <p style={{ fontSize: '1.1rem', color: '#6b7280' }}>No tienes viajes registrados por ahora.</p>
-            </div>
-          )}
-
-          {viajes.map((viaje) => (
-            <div key={viaje.idViaje} className="login-card" style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ background: '#eff6ff', padding: '20px', borderBottom: '1px solid #dbeafe' }}>
-                <h3 style={{ margin: '0 0 5px 0', color: '#1e3a8a', fontSize: '1.2rem' }}>{viaje.nombre}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#3b82f6', fontSize: '0.9rem' }}>
-                  <Calendar size={14} />
-                  <span>{viaje.fecha}</span>
-                </div>
+      {isOpen && (
+        <div style={{ 
+          position: 'absolute', top: '120%', right: 0, width: '260px', 
+          background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', 
+          boxShadow: '0 10px 30px -5px rgba(0,0,0,0.15)', zIndex: 100, overflow: 'hidden', padding: '8px' 
+        }}>
+          <div style={{ padding: '8px 12px', fontSize: '0.8rem', color: '#94a3b8', fontWeight: '700' }}>CAMBIAR CUENTA</div>
+          {profiles.map((p) => (
+            <div 
+              key={`${p.tipo}-${p.id}`} 
+              onClick={() => { switchProfile(p.id, p.tipo); setIsOpen(false); }}
+              style={{ 
+                padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '10px', 
+                cursor: 'pointer', borderRadius: '8px', transition: '0.2s',
+                background: (activeProfile.id === p.id && activeProfile.tipo === p.tipo) ? '#f0f9ff' : 'transparent',
+                border: (activeProfile.id === p.id && activeProfile.tipo === p.tipo) ? '1px solid #bae6fd' : '1px solid transparent'
+              }}
+              onMouseEnter={(e) => { if(activeProfile.id !== p.id) e.currentTarget.style.background = '#f8fafc'; }}
+              onMouseLeave={(e) => { if(activeProfile.id !== p.id) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <div style={{ color: (activeProfile.id === p.id && activeProfile.tipo === p.tipo) ? 'var(--primary)' : '#64748b' }}>{getIcon(p.tipo)}</div>
+              <div style={{ flex: 1 }}>
+                 <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#334155' }}>{p.nombre}</div>
+                 <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{p.tipo}</div>
               </div>
-
-              <div style={{ padding: '20px', flex: 1 }}>
-                <p style={{ color: '#6b7280', margin: 0, fontSize: '0.95rem' }}>
-                  Destino: <strong style={{ color: '#374151' }}>{viaje.destino}</strong>
-                </p>
-              </div>
-
-              <div style={{ padding: '15px 20px', borderTop: '1px solid #f3f4f6', marginTop: 'auto' }}>
-                 {/* 3. AGREGAR EL ONCLICK AQUÍ */}
-                 <button 
-                   onClick={() => navigate(`/viaje/${viaje.idViaje}`)}
-                   style={{ 
-                     width: '100%', padding: '10px', border: '1px solid #e5e7eb', borderRadius: '8px',
-                     background: 'white', color: '#374151', fontWeight: '600', cursor: 'pointer',
-                     display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px'
-                   }}
-                 >
-                   Ver Detalles <ArrowRightCircle size={16} />
-                 </button>
-              </div>
+              {(activeProfile.id === p.id && activeProfile.tipo === p.tipo) && <div style={{width:'8px', height:'8px', borderRadius:'50%', background:'var(--primary)'}}></div>}
             </div>
           ))}
-
+          <div style={{ height: '1px', background: '#f1f5f9', margin: '8px 0' }}></div>
+          <button onClick={logout} style={{ width: '100%', padding: '10px', display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', background: '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+            <LogOut size={16} /> Cerrar Sesión
+          </button>
         </div>
       )}
+    </div>
+  );
+};
+
+export default function Dashboard() {
+  const { user, activeProfile } = useAuth();
+
+  if (!user || !activeProfile) return <div style={{textAlign:'center', padding:'50px', color:'#64748b'}}>Cargando perfil...</div>;
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* BARRA SUPERIOR DE PERFIL (Ya no flota sobre el contenido, empuja hacia abajo) */}
+      <div style={{ 
+        background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '15px 20px', 
+        display: 'flex', justifyContent: 'flex-end', alignItems: 'center' 
+      }}>
+         <ProfileSwitcher />
+      </div>
+
+      {/* CONTENIDO PRINCIPAL */}
+      <div style={{ flex: 1 }}>
+        {/* 1. ROL ADMINISTRADOR */}
+        {activeProfile.tipo === 'Administrador' && (
+           <AdminDashboardContent />
+        )}
+
+        {/* 2. ROL CLIENTE */}
+        {activeProfile.tipo === 'Cliente' && (
+          <ClientDashboard 
+              // Inyectamos ID Cliente y Tipo para que el componente sepa qué pedir
+              user={{ ...user, idCliente: activeProfile.id, nombre: activeProfile.nombre, rol: 'Cliente' }} 
+          />
+        )}
+
+        {/* 3. ROL PASAJERO */}
+        {activeProfile.tipo === 'Pasajero' && (
+          <PassengerDashboard 
+              // Inyectamos ID Pasajero y Tipo
+              user={{ ...user, idPasajero: activeProfile.id, nombre: activeProfile.nombre, rol: 'Pasajero' }} 
+          />
+        )}
+      </div>
     </div>
   );
 }

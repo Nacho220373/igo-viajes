@@ -1,40 +1,60 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ConfigProvider } from './context/ConfigContext'; 
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import ViajeDetalle from './pages/ViajeDetalle'; // <--- NUEVO
+import DetalleViaje from './pages/ViajeDetalle'; 
+import Invite from './pages/Invite'; 
+
+import AdminClientes from './pages/admin/AdminClientes';
+import AdminPasajeros from './pages/admin/AdminPasajeros';
+import AdminViajes from './pages/admin/AdminViajes';
+import AdminDetalleViaje from './pages/admin/AdminDetalleViaje';
+import AdminProveedores from './pages/admin/AdminProveedores';
+import AdminGuard from './components/AdminGuard';
 
 const RutaProtegida = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ color: 'white' }}>Cargando...</div>;
+  if (loading) return <div style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Cargando...</div>;
   if (!user) return <Navigate to="/login" />;
   return children;
 };
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
+    <ConfigProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Rutas Públicas */}
+            <Route path="/login" element={<Login />} />
+            {/* <Route path="/register" element={<Register />} />  <--- ELIMINAR ESTA RUTA */}
+            <Route path="/invite" element={<Invite />} />
+            
+            {/* Rutas Privadas Generales */}
+            <Route path="/" element={
+              <RutaProtegida>
+                <Dashboard />
+              </RutaProtegida>
+            } />
 
-          {/* Rutas Privadas */}
-          <Route path="/" element={
-            <RutaProtegida>
-              <Dashboard />
-            </RutaProtegida>
-          } />
+            <Route path="/viaje/:id" element={
+              <RutaProtegida>
+                <DetalleViaje />
+              </RutaProtegida>
+            } />
 
-          {/* NUEVA RUTA: Fíjate en el :id, eso permite urls dinámicas */}
-          <Route path="/viaje/:id" element={
-            <RutaProtegida>
-              <ViajeDetalle />
-            </RutaProtegida>
-          } />
-          
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            {/* --- ZONA ADMINISTRATIVA --- */}
+            <Route path="/admin/clientes" element={<RutaProtegida><AdminGuard><AdminClientes /></AdminGuard></RutaProtegida>} />
+            <Route path="/admin/pasajeros" element={<RutaProtegida><AdminGuard><AdminPasajeros /></AdminGuard></RutaProtegida>} />
+            <Route path="/admin/viajes" element={<RutaProtegida><AdminGuard><AdminViajes /></AdminGuard></RutaProtegida>} />
+            <Route path="/admin/viaje/:id" element={<RutaProtegida><AdminGuard><AdminDetalleViaje /></AdminGuard></RutaProtegida>} />
+            <Route path="/admin/proveedores" element={<RutaProtegida><AdminGuard><AdminProveedores /></AdminGuard></RutaProtegida>} />
+            
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ConfigProvider>
   );
 }
 

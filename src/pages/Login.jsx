@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'; // <--- NUEVO: Agregamos useEffect
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom'; // <--- NUEVO: Importamos el "GPS"
+import { useConfig } from '../context/ConfigContext'; 
+import { useNavigate } from 'react-router-dom'; // <--- ELIMINADO 'Link'
 import { User, Lock, ArrowRight, Plane } from 'lucide-react';
 
 export default function Login() {
@@ -8,51 +9,44 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imgError, setImgError] = useState(false);
   
-  const { login, user } = useAuth(); // <--- Traemos 'user' para saber si ya existe
-  const navigate = useNavigate(); // <--- NUEVO: Inicializamos el GPS
+  const { login, user } = useAuth(); 
+  const { config } = useConfig(); 
+  const navigate = useNavigate();
 
-  // NUEVO: Efecto de "Portero Inverso"
-  // Si el usuario YA existe (porque acabó de entrar o ya estaba guardado),
-  // lo mandamos al Dashboard inmediatamente.
-  useEffect(() => {
-    if (user) {
-      navigate('/');
-    }
-  }, [user, navigate]);
+  useEffect(() => { if (user) navigate('/'); }, [user, navigate]);
+  useEffect(() => { setImgError(false); }, [config.logo_url]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
-    
-    if (!email || !password) {
-      setError('Por favor llena todos los campos');
-      setIsSubmitting(false);
-      return;
-    }
-
+    if (!email || !password) { setError('Por favor llena todos los campos'); setIsSubmitting(false); return; }
     const resultado = await login(email, password);
-    
-    if (!resultado.exito) {
-      setError(resultado.error);
-      setIsSubmitting(false);
-    } else {
-      // NUEVO: Si fue éxito, no hacemos nada más aquí.
-      // El useEffect de arriba detectará el cambio de 'user' 
-      // y hará la redirección automática.
-    }
+    if (!resultado.exito) { setError(resultado.error); setIsSubmitting(false); }
   };
 
   return (
-    <div className="login-container">
-      <div className="login-card">
+    <div className="auth-layout">
+      <div className="auth-card">
+        <div className="card-decoration-top"></div>
+        
         <div className="login-header">
-          <div className="logo-circle">
-            <Plane size={32} color="white" />
+          <div className="logo-box">
+             {config.logo_url && !imgError ? (
+               <img 
+                 src={config.logo_url} 
+                 alt="Logo" 
+                 onError={() => setImgError(true)} 
+                 style={{ width: '100%', height: '100%', borderRadius: '20px', objectFit: 'cover' }} 
+               />
+             ) : (
+               <Plane size={40} color="var(--primary)" strokeWidth={1.5} />
+             )}
           </div>
-          <h1>IGO Viajes</h1>
-          <p>Tu portal de gestión de aventuras</p>
+          <h1>{config.nombre_empresa || 'IGO Viajes'}</h1>
+          <p>Bienvenido a tu portal de viajes</p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -60,12 +54,7 @@ export default function Login() {
             <label>Correo Electrónico</label>
             <div className="input-wrapper">
               <User size={18} className="icon" />
-              <input 
-                type="email" 
-                placeholder="usuario@igo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <input type="email" placeholder="usuario@dominio.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
           </div>
 
@@ -73,21 +62,18 @@ export default function Login() {
             <label>Contraseña</label>
             <div className="input-wrapper">
               <Lock size={18} className="icon" />
-              <input 
-                type="password" 
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
           </div>
 
           {error && <div className="error-message">{error}</div>}
 
-          <button type="submit" className="btn-login" disabled={isSubmitting}>
+          <button type="submit" className="btn-primary" disabled={isSubmitting}>
             {isSubmitting ? 'Verificando...' : 'Iniciar Sesión'} 
             {!isSubmitting && <ArrowRight size={18} />}
           </button>
+
+          {/* ELIMINADO: Bloque de "Registrate aquí" */}
         </form>
       </div>
     </div>
