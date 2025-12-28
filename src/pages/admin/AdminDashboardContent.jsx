@@ -5,14 +5,15 @@ import { enviarPeticion } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import SearchableSelect from '../../components/SearchableSelect';
+// AÑADIDO: Importamos iconos para las alertas (AlertCircle, CheckCircle, AlertTriangle)
 import { 
-  LogOut, Map, User as UserIcon, Calendar, ArrowRightCircle, LayoutGrid, List, Search, X, 
+  LogOut, Map as MapIcon, User as UserIcon, Calendar, ArrowRightCircle, LayoutGrid, List, Search, X, 
   Users, UserCheck, Plane, Briefcase, TrendingUp, TrendingDown, Wallet, Bell, DollarSign, Clock, 
-  Plus, ChevronDown, ChevronUp, FileText, Download, Printer 
+  Plus, ChevronDown, ChevronUp, FileText, Download, Printer, Tag, Hotel, Car, Utensils, Ticket,
+  CheckSquare, Square, AlertCircle, CheckCircle, AlertTriangle
 } from 'lucide-react';
 
 export default function AdminDashboardContent() {
-  // ... (Resto de imports y estados iniciales sin cambios)
   const { user, logout } = useAuth();
   const { config } = useConfig();
   const navigate = useNavigate();
@@ -28,6 +29,9 @@ export default function AdminDashboardContent() {
   const [showModalSelectorEdoCta, setShowModalSelectorEdoCta] = useState(false);
   const [showModalReporte, setShowModalReporte] = useState(false);
 
+  // ESTADO PARA ALERTAS PERSONALIZADAS (NUEVO)
+  const [customAlert, setCustomAlert] = useState({ show: false, title: '', msg: '', type: 'info' });
+
   // ESTADOS ESTADO DE CUENTA
   const [edoCtaFiltro, setEdoCtaFiltro] = useState({ idCliente: '', idViaje: '', fechaInicio: '', fechaFin: '' });
   const [edoCtaData, setEdoCtaData] = useState({ transacciones: [], cliente: null, resumen: {ingresos:0, egresos:0}, esGeneral: false });
@@ -37,13 +41,21 @@ export default function AdminDashboardContent() {
   // FORMULARIO TRANSACCIÓN RÁPIDA
   const formTransaccionInicial = { 
     tipo: '1', formaPago: '', monto: '', moneda: '1', concepto: '', 
-    idCliente: '', idViaje: '', idProveedor: '', idServicio: '', 
+    idCliente: '', idViaje: '', idProveedor: '', 
     fecha: new Date().toISOString().split('T')[0] 
   };
   const [formTransaccion, setFormTransaccion] = useState(formTransaccionInicial);
+  
+  // LISTAS Y CATÁLOGOS
   const [listasFinancieras, setListasFinancieras] = useState({ formasPago: [], monedas: [], tipos: [] });
   const [listaProveedores, setListaProveedores] = useState([]);
+  const [listaCategorias, setListaCategorias] = useState([]); 
+  const [listaEstatus, setListaEstatus] = useState([]); 
+  
+  // SERVICIOS Y TRANSACCIONES DEL VIAJE SELECCIONADO
   const [serviciosViaje, setServiciosViaje] = useState([]);
+  const [transaccionesViaje, setTransaccionesViaje] = useState([]); 
+  const [selectedServiciosFinanza, setSelectedServiciosFinanza] = useState([]); 
   const [procesando, setProcesando] = useState(false);
 
   useEffect(() => {
@@ -57,9 +69,15 @@ export default function AdminDashboardContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Cargar Servicios Y Transacciones al seleccionar un viaje
   useEffect(() => {
-    if (formTransaccion.idViaje) cargarServiciosDelViaje(formTransaccion.idViaje);
-    else setServiciosViaje([]);
+    setServiciosViaje([]); 
+    setTransaccionesViaje([]);
+    setSelectedServiciosFinanza([]);
+
+    if (formTransaccion.idViaje) {
+        cargarDatosDelViaje(formTransaccion.idViaje);
+    }
   }, [formTransaccion.idViaje]);
 
   const cargarDashboardAdmin = async () => {
@@ -73,24 +91,64 @@ export default function AdminDashboardContent() {
 
   const cargarListasCompletas = async () => {
       try {
-        const [resListas, resProv] = await Promise.all([
+        const [resListasFin, resProv, resListasGrales] = await Promise.all([
             enviarPeticion({ accion: 'obtenerListasFinancieras' }),
-            enviarPeticion({ accion: 'obtenerProveedores' })
+            enviarPeticion({ accion: 'obtenerProveedores' }),
+            enviarPeticion({ accion: 'obtenerListas' })
         ]);
-        if(resListas.exito) setListasFinancieras(resListas.listas);
+        
+        if(resListasFin.exito) setListasFinancieras(resListasFin.listas);
         if(resProv.exito) setListaProveedores(resProv.datos);
+        if(resListasGrales.exito && resListasGrales.listas) {
+            setListaCategorias(resListasGrales.listas.categorias || []);
+            setListaEstatus(resListasGrales.listas.estatus || []);
+        }
       } catch (error) { console.error(error); }
   };
 
-  const cargarServiciosDelViaje = async (idViaje) => {
-      const res = await enviarPeticion({ accion: 'obtenerDetallesViaje', idViaje });
-      if(res.exito) setServiciosViaje(res.datos);
+  const cargarDatosDelViaje = async (idViaje) => {
+      try {
+          const [resServicios, resFinanzas] = await Promise.all([
+              enviarPeticion({ accion: 'obtenerDetallesViaje', idViaje }),
+              enviarPeticion({ accion: 'obtenerFinanzasViaje', idViaje })
+          ]);
+
+          if (resServicios.exito && Array.isArray(resServicios.datos)) {
+              setServiciosViaje(resServicios.datos);
+          } else {
+              setServiciosViaje([]);
+          }
+
+          if (resFinanzas.exito && Array.isArray(resFinanzas.datos)) {
+              setTransaccionesViaje(resFinanzas.datos);
+          } else {
+              setTransaccionesViaje([]);
+          }
+
+      } catch (error) {
+          console.error("Error cargando datos del viaje", error);
+          setServiciosViaje([]);
+          setTransaccionesViaje([]);
+      }
+  };
+
+  // --- HELPERS DE ALERTAS (NUEVO) ---
+  const showAlert = (title, msg, type = 'info') => {
+      setCustomAlert({ show: true, title, msg, type });
+  };
+
+  const closeAlert = () => {
+      setCustomAlert({ ...customAlert, show: false });
   };
 
   // --- NAVEGACIÓN MENÚ ---
   const handleMenuOption = (ruta, accionEspecial = null) => {
       setShowAddMenu(false);
-      if (accionEspecial === 'transaccion') setShowModalTransaccion(true);
+      if (accionEspecial === 'transaccion') {
+          setFormTransaccion(formTransaccionInicial);
+          setSelectedServiciosFinanza([]);
+          setShowModalTransaccion(true);
+      }
       else if (accionEspecial === 'edocta') {
           setEdoCtaFiltro({ idCliente: '', idViaje: '', fechaInicio: '', fechaFin: '' }); 
           setShowModalSelectorEdoCta(true);
@@ -98,7 +156,6 @@ export default function AdminDashboardContent() {
       else navigate(ruta, { state: { openCreate: true } });
   };
 
-  // --- HELPER: Parsear fecha dd/mm/yyyy a Objeto Date ---
   const parseFechaLocal = (fechaStr) => {
       if (!fechaStr) return null;
       try {
@@ -110,12 +167,106 @@ export default function AdminDashboardContent() {
       } catch (e) { return null; }
   };
 
-  // --- GENERAR REPORTE (DATOS CON FILTRO DE FECHA) ---
+  // === LÓGICA DE AGRUPACIÓN (BLINDADA) ===
+  const getIconoCategoria = (catId) => { 
+      if (!listaCategorias) return <Tag size={18}/>;
+      const c = listaCategorias.find(x=>x.id==catId); 
+      const n = c ? c.nombre.toLowerCase() : ''; 
+      if(n.includes('vuelo')) return <Plane size={18}/>; 
+      if(n.includes('hotel')) return <Hotel size={18}/>; 
+      if(n.includes('auto') || n.includes('traslado')) return <Car size={18}/>;
+      if(n.includes('alimento')) return <Utensils size={18}/>;
+      return <Tag size={18}/>; 
+  };
+
+  const getNombreCategoria = (id) => {
+      if (!listaCategorias) return 'Servicio';
+      const cat = listaCategorias.find(c => c.id == id);
+      return cat ? cat.nombre : 'Servicio';
+  };
+
+  const isServicioSaldado = (idServicio) => {
+    if (!transaccionesViaje || !Array.isArray(transaccionesViaje)) return false;
+    const movs = transaccionesViaje.filter(t => t && t.idServicio == idServicio);
+    if (movs.length === 0) return false; 
+    let balance = 0;
+    movs.forEach(t => { 
+        const monto = parseFloat(String(t.monto || "0").replace(/[^0-9.-]+/g,"")) || 0; 
+        if (t.tipoId == 1 || t.tipoId == 3) balance += monto; 
+        if (t.tipoId == 2) balance -= monto; 
+    });
+    return Math.abs(balance) < 0.1; 
+  };
+
+  const obtenerServiciosAgrupados = () => {
+      if (!serviciosViaje || !Array.isArray(serviciosViaje) || serviciosViaje.length === 0) return [];
+
+      const gruposMap = new Map();
+      const pendientes = serviciosViaje.filter(s => s && s.idServicio && !isServicioSaldado(s.idServicio));
+
+      pendientes.forEach(s => {
+          const cat = String(s.categoriaId || '').trim();
+          const dest = String(s.destino || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          let fecha = String(s.fechaInicio || '').split(' ')[0].trim(); 
+          const fechaParts = fecha.includes('/') ? fecha.split('/') : (fecha.includes('-') ? fecha.split('-') : []);
+          
+          if (fechaParts.length === 3) {
+              const p1 = fechaParts[0].padStart(2, '0');
+              const p2 = fechaParts[1].padStart(2, '0');
+              const p3 = fechaParts[2];
+              fecha = `${p1}/${p2}/${p3}`;
+          }
+
+          const clave = String(s.clave || '').trim().toUpperCase();
+          let uniqueKey = '';
+          
+          if (clave && clave !== 'UNDEFINED' && clave !== 'NULL' && clave !== '0') {
+              uniqueKey = `CLAVE:${clave}`; 
+          } else {
+              uniqueKey = `AUTO:${cat}|${dest}|${fecha}`;
+          }
+
+          if (!gruposMap.has(uniqueKey)) {
+              gruposMap.set(uniqueKey, {
+                  key: uniqueKey,
+                  ids: [],
+                  servicioBase: s,
+                  nombresPasajeros: []
+              });
+          }
+          
+          const grupo = gruposMap.get(uniqueKey);
+          grupo.ids.push(s.idServicio);
+          
+          if (s.nombrePasajero && !grupo.nombresPasajeros.includes(s.nombrePasajero)) {
+              grupo.nombresPasajeros.push(s.nombrePasajero);
+          }
+      });
+
+      return Array.from(gruposMap.values()).map(g => ({
+          ...g,
+          cantidad: g.ids.length,
+          pasajerosStr: g.nombresPasajeros.sort().join(", ")
+      }));
+  };
+
+  const toggleGrupoServicios = (idsGrupo) => {
+      const todosSeleccionados = idsGrupo.every(id => selectedServiciosFinanza.includes(id));
+      let nuevaSeleccion = [...selectedServiciosFinanza];
+      if (todosSeleccionados) {
+          nuevaSeleccion = nuevaSeleccion.filter(id => !idsGrupo.includes(id));
+      } else {
+          idsGrupo.forEach(id => {
+              if (!nuevaSeleccion.includes(id)) nuevaSeleccion.push(id);
+          });
+      }
+      setSelectedServiciosFinanza(nuevaSeleccion);
+  };
+
+  // --- GENERAR REPORTE (ALERTAS REEMPLAZADAS) ---
   const generarReporte = async () => {
-      if (!edoCtaFiltro.idCliente) return alert("Selecciona un cliente o el reporte global");
-      
+      if (!edoCtaFiltro.idCliente) return showAlert("Faltan datos", "Selecciona un cliente o el reporte global", "warning");
       setLoadingReporte(true);
-      
       const res = await enviarPeticion({ 
           accion: 'obtenerEstadoCuentaGlobal', 
           idCliente: edoCtaFiltro.idCliente,
@@ -124,8 +275,6 @@ export default function AdminDashboardContent() {
 
       if (res.exito) {
           let transaccionesFiltradas = res.datos;
-
-          // --- FILTRADO POR FECHAS (Frontend) ---
           if (edoCtaFiltro.fechaInicio) {
               const fechaInicio = new Date(edoCtaFiltro.fechaInicio);
               fechaInicio.setHours(0,0,0,0);
@@ -134,7 +283,6 @@ export default function AdminDashboardContent() {
                   return fechaT && fechaT >= fechaInicio;
               });
           }
-
           if (edoCtaFiltro.fechaFin) {
               const fechaFin = new Date(edoCtaFiltro.fechaFin);
               fechaFin.setHours(23,59,59,999);
@@ -143,146 +291,97 @@ export default function AdminDashboardContent() {
                   return fechaT && fechaT <= fechaFin;
               });
           }
-
-          // Recalcular Totales
           let ing = 0, egr = 0;
           transaccionesFiltradas.forEach(t => {
              const m = parseFloat(String(t.monto).replace(/[^0-9.-]+/g,"")) || 0;
              if (t.tipoId == 1 || t.tipoId == 3) ing += m; 
              if (t.tipoId == 2) egr += m; 
           });
-
           setEdoCtaData({ 
               transacciones: transaccionesFiltradas, 
               cliente: res.cliente,
               resumen: { ingresos: ing, egresos: egr },
               esGeneral: res.esGeneral 
           });
-          
           setShowModalSelectorEdoCta(false);
           setShowModalReporte(true);
       } else {
-          alert("Error al generar reporte: " + res.error);
+          showAlert("Error", "Error al generar reporte: " + res.error, "error");
       }
       setLoadingReporte(false);
   };
 
-  // --- DESCARGAR EXCEL ESTILO CLIENTE ---
   const descargarExcel = () => {
-    if (!edoCtaData.transacciones.length) return alert("No hay datos para exportar");
-    
-    const colSpanTotal = edoCtaData.esGeneral ? 5 : 4; 
+    if (!edoCtaData.transacciones.length) return showAlert("Sin datos", "No hay datos para exportar", "warning");
+    const colSpanTotal = edoCtaData.esGeneral ? 8 : 7; 
     const extraHeader = edoCtaData.esGeneral ? '<th style="background:#1e3a8a;color:white;">Cliente</th>' : '';
-    
-    const rangoFechas = (edoCtaFiltro.fechaInicio || edoCtaFiltro.fechaFin) 
-        ? `Periodo: ${edoCtaFiltro.fechaInicio || 'Inicio'} al ${edoCtaFiltro.fechaFin || 'Hoy'}` 
-        : `Fecha Emisión: ${new Date().toLocaleDateString()}`;
+    const rangoFechas = (edoCtaFiltro.fechaInicio || edoCtaFiltro.fechaFin) ? `Periodo: ${edoCtaFiltro.fechaInicio || 'Inicio'} al ${edoCtaFiltro.fechaFin || 'Hoy'}` : `Fecha Emisión: ${new Date().toLocaleDateString()}`;
 
     let htmlTable = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="UTF-8"></head>
-      <body>
-        <table>
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"></head><body><table>
           <tr><td colspan="${colSpanTotal}" align="center" style="font-size:18px;font-weight:bold;color:#2563eb;">ESTADO DE CUENTA - ${config.nombre_empresa || 'IGO Viajes'}</td></tr>
           <tr><td colspan="${colSpanTotal}" align="center">Cliente: ${edoCtaData.cliente?.nombre}</td></tr>
           <tr><td colspan="${colSpanTotal}" align="center">${rangoFechas}</td></tr>
           <tr><td colspan="${colSpanTotal}"></td></tr>
-          <tr>
-            <th style="background:#1e3a8a;color:white;">Fecha</th>
-            ${extraHeader}
-            <th style="background:#1e3a8a;color:white;">Concepto</th>
-            <th style="background:#1e3a8a;color:white;">Tipo</th>
-            <th style="background:#1e3a8a;color:white;">Monto</th>
-          </tr>
+          <tr><th style="background:#1e3a8a;color:white;">Fecha</th>${extraHeader}<th style="background:#1e3a8a;color:white;">Viaje</th><th style="background:#1e3a8a;color:white;">Servicio / Detalle</th><th style="background:#1e3a8a;color:white;">Pasajero</th><th style="background:#1e3a8a;color:white;">Concepto</th><th style="background:#1e3a8a;color:white;">Tipo</th><th style="background:#1e3a8a;color:white;">Monto</th></tr>
     `;
-
     edoCtaData.transacciones.forEach(t => {
       const isIngreso = (t.tipoId == 1 || t.tipoId == 3);
       const tipoTexto = t.tipoId == 1 ? 'PAGO' : (t.tipoId == 3 ? 'ABONO CTA' : 'CARGO');
-      const colorTexto = isIngreso ? '#16a34a' : '#dc2626'; // Verde o Rojo
+      const colorTexto = isIngreso ? '#16a34a' : '#dc2626';
       const monto = parseFloat(String(t.monto).replace(/[^0-9.-]+/g,"")) || 0;
       const clientCell = edoCtaData.esGeneral ? `<td>${t.nombreCliente}</td>` : ``;
-
-      htmlTable += `
-        <tr>
-            <td>${t.fecha}</td>
-            ${clientCell}
-            <td>${t.concepto}</td>
-            <td style="color:${colorTexto}">${tipoTexto}</td>
-            <td style="color:${colorTexto}">$${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td>
-        </tr>`;
+      htmlTable += `<tr><td>${t.fecha}</td>${clientCell}<td>${t.nombreViaje || ''}</td><td>${t.infoServicio || ''}</td><td>${t.nombrePasajero || ''}</td><td>${t.concepto}</td><td style="color:${colorTexto}">${tipoTexto}</td><td style="color:${colorTexto}">$${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td></tr>`;
     });
-
     const saldoFinal = edoCtaData.resumen.ingresos - edoCtaData.resumen.egresos;
-    
-    htmlTable += `
-        <tr><td colspan="${colSpanTotal}"></td></tr>
-        <tr>
-            <td colspan="${colSpanTotal - 1}" align="right"><b>Total Pagado (Abonos):</b></td>
-            <td style="color:#16a34a"><b>$${edoCtaData.resumen.ingresos.toLocaleString('es-MX')}</b></td>
-        </tr>
-        <tr>
-            <td colspan="${colSpanTotal - 1}" align="right"><b>Total Costos (Cargos):</b></td>
-            <td style="color:#dc2626"><b>$${edoCtaData.resumen.egresos.toLocaleString('es-MX')}</b></td>
-        </tr>
-        <tr>
-            <td colspan="${colSpanTotal - 1}" align="right" style="background:#eff6ff; color:#2563eb;"><b>SALDO FINAL:</b></td>
-            <td style="background:#eff6ff; color:#2563eb;"><b>$${saldoFinal.toLocaleString('es-MX')}</b></td>
-        </tr>
-      </table>
-      </body>
-      </html>
-    `;
-
+    htmlTable += `<tr><td colspan="${colSpanTotal}"></td></tr><tr><td colspan="${colSpanTotal - 1}" align="right"><b>Total Pagado (Abonos):</b></td><td style="color:#16a34a"><b>$${edoCtaData.resumen.ingresos.toLocaleString('es-MX')}</b></td></tr><tr><td colspan="${colSpanTotal - 1}" align="right"><b>Total Costos (Cargos):</b></td><td style="color:#dc2626"><b>$${edoCtaData.resumen.egresos.toLocaleString('es-MX')}</b></td></tr><tr><td colspan="${colSpanTotal - 1}" align="right" style="background:#eff6ff; color:#2563eb;"><b>SALDO FINAL:</b></td><td style="background:#eff6ff; color:#2563eb;"><b>$${saldoFinal.toLocaleString('es-MX')}</b></td></tr></table></body></html>`;
     const blob = new Blob([htmlTable], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
+    const link = document.createElement("a"); link.href = url;
     const cleanName = edoCtaData.cliente?.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     link.download = `EdoCta_${cleanName}_${new Date().toISOString().slice(0,10)}.xls`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const descargarPDF = () => {
     const element = document.getElementById('print-area-admin');
     if (!element) return;
     setGenerandoPDF(true);
-    const opt = { margin: [10, 10], filename: `EdoCta.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+    const opt = { margin: [5, 5], filename: `EdoCta.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } };
     html2pdf().set(opt).from(element).save().then(() => setGenerandoPDF(false));
   };
 
   const handleGuardarTransaccion = async (e) => {
       e.preventDefault();
-      if(!formTransaccion.idCliente) return alert("Selecciona un cliente");
+      if(!formTransaccion.idCliente) return showAlert("Faltan datos", "Selecciona un cliente", "warning");
       setProcesando(true);
-      const respuesta = await enviarPeticion({ accion: 'registrarTransaccion', transaccion: formTransaccion });
+      const transaccionEnviar = { ...formTransaccion, idServicio: selectedServiciosFinanza.length > 0 ? selectedServiciosFinanza : '' };
+      const respuesta = await enviarPeticion({ accion: 'registrarTransaccion', transaccion: transaccionEnviar });
       if(respuesta.exito) {
           setShowModalTransaccion(false);
           setFormTransaccion(formTransaccionInicial);
+          setSelectedServiciosFinanza([]);
           cargarDashboardAdmin();
-          alert("Movimiento registrado correctamente");
+          showAlert("Éxito", "Movimiento registrado correctamente", "success");
       } else {
-          alert("Error: " + respuesta.error);
+          showAlert("Error", "Error: " + respuesta.error, "error");
       }
       setProcesando(false);
   };
+
+  // Cálculo seguro
+  const gruposServicios = (showModalTransaccion && Array.isArray(serviciosViaje) && serviciosViaje.length > 0) 
+      ? obtenerServiciosAgrupados() 
+      : [];
 
   return (
       <div className="dashboard-container" style={{ paddingTop: '80px' }}>
           {/* HEADER PRINCIPAL */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
-              <div>
-                  <h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--primary-dark)', fontWeight: '800' }}>Panel de Control</h1>
-                  <p style={{ margin: '5px 0 0', color: '#64748b' }}>Vista Administrativa</p>
-              </div>
-              
+              <div><h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--primary-dark)', fontWeight: '800' }}>Panel de Control</h1><p style={{ margin: '5px 0 0', color: '#64748b' }}>Vista Administrativa</p></div>
               <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                   <div style={{ position: 'relative' }} ref={addMenuRef}>
-                      <button onClick={() => setShowAddMenu(!showAddMenu)} style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '50px', cursor: 'pointer', fontWeight: '700', display:'flex', gap:'8px', alignItems:'center', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.3)' }}>
-                          <Plus size={18}/> Acciones {showAddMenu ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-                      </button>
+                      <button onClick={() => setShowAddMenu(!showAddMenu)} style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '50px', cursor: 'pointer', fontWeight: '700', display:'flex', gap:'8px', alignItems:'center', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.3)' }}><Plus size={18}/> Acciones {showAddMenu ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>
                       {showAddMenu && (
                           <div style={{ position: 'absolute', top: '120%', right: 0, background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 100, overflow: 'hidden', padding: '8px' }}>
                               <div onClick={() => handleMenuOption('/admin/viajes')} style={menuItemStyle}><Plane size={18} color="var(--primary)"/> Nuevo Viaje</div>
@@ -311,13 +410,10 @@ export default function AdminDashboardContent() {
                     <BalanceCard title="Ingresos Totales" amount={dashboardData.balance.ingresos} icon={<TrendingUp size={24}/>} color="#16a34a" bg="#ecfdf5" />
                     <BalanceCard title="Egresos Totales" amount={dashboardData.balance.egresos} icon={<TrendingDown size={24}/>} color="#ef4444" bg="#fef2f2" />
                     <div style={{ background: 'var(--primary-gradient)', padding: '24px', borderRadius: '24px', color: 'white', boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.4)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', opacity: 0.9 }}>
-                            <Wallet size={24} /> <span style={{ fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase' }}>Utilidad Neta</span>
-                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', opacity: 0.9 }}><Wallet size={24} /> <span style={{ fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase' }}>Utilidad Neta</span></div>
                         <div style={{ fontSize: '2.2rem', fontWeight: '800' }}>${dashboardData.balance.utilidad.toLocaleString()}</div>
                     </div>
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '25px' }}>
                     <div className="dashboard-card" style={{ padding: '24px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -325,42 +421,19 @@ export default function AdminDashboardContent() {
                             <span style={{ background: '#eff6ff', color: 'var(--primary)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>{dashboardData.viajesActivos.length}</span>
                         </div>
                         {dashboardData.viajesActivos.length === 0 ? <p style={{color:'#94a3b8', textAlign:'center'}}>No hay viajes en curso.</p> : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                {dashboardData.viajesActivos.map(v => (
-                                    <div key={v.id} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                                        <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '1rem' }}>{v.nombre}</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', fontSize: '0.85rem', color: '#64748b' }}>
-                                            <span>{v.cliente}</span>
-                                            <span style={{ color: v.diasRestantes < 3 ? '#ef4444' : '#10b981', fontWeight: '600' }}>{v.diasRestantes > 0 ? `Termina en ${v.diasRestantes} días` : 'Termina hoy'}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>{dashboardData.viajesActivos.map(v => (<div key={v.id} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}><div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '1rem' }}>{v.nombre}</div><div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', fontSize: '0.85rem', color: '#64748b' }}><span>{v.cliente}</span><span style={{ color: v.diasRestantes < 3 ? '#ef4444' : '#10b981', fontWeight: '600' }}>{v.diasRestantes > 0 ? `Termina en ${v.diasRestantes} días` : 'Termina hoy'}</span></div></div>))}</div>
                         )}
                     </div>
                     <div className="dashboard-card" style={{ padding: '24px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'10px' }}><Bell size={20} color="#f59e0b"/> Próximos Servicios</h3>
-                            {/* --- CAMBIO VISUAL: "3 horas" EN LUGAR DE "7 días" --- */}
-                            <span style={{ background: '#fffbeb', color: '#f59e0b', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>3 horas</span>
-                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}><h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'10px' }}><Bell size={20} color="#f59e0b"/> Próximos Servicios</h3><span style={{ background: '#fffbeb', color: '#f59e0b', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>3 horas</span></div>
                         {dashboardData.recordatorios.length === 0 ? <p style={{color:'#94a3b8', textAlign:'center'}}>Sin servicios próximos.</p> : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                {dashboardData.recordatorios.map((r, i) => (
-                                    <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                        <div style={{ background: '#f1f5f9', padding: '8px', borderRadius: '10px', minWidth:'40px', textAlign:'center' }}><div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8' }}>ID</div><div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>{r.idServicio}</div></div>
-                                        {/* --- CAMBIO: Mostrar la hora en la lista --- */}
-                                        <div><div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{r.categoria === 1 ? 'Vuelo' : 'Servicio'} a {r.destino}</div><div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={12}/> Hora: {r.fecha}</div></div>
-                                    </div>
-                                ))}
-                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>{dashboardData.recordatorios.map((r, i) => (<div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}><div style={{ background: '#f1f5f9', padding: '8px', borderRadius: '10px', minWidth:'40px', textAlign:'center' }}><div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8' }}>ID</div><div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>{r.idServicio}</div></div><div><div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{r.categoria === 1 ? 'Vuelo' : 'Servicio'} a {r.destino}</div><div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={12}/> Hora: {r.fecha}</div></div></div>))}</div>
                         )}
                     </div>
                 </div>
               </>
           )}
 
-          {/* ... (Resto de modales iguales) ... */}
           {/* MODAL 1: SELECTOR PARA ESTADO DE CUENTA */}
           {showModalSelectorEdoCta && (
               <div style={modalOverlayStyle}>
@@ -376,7 +449,6 @@ export default function AdminDashboardContent() {
                                 placeholder="Buscar cliente..."
                             />
                           </div>
-
                           {edoCtaFiltro.idCliente && edoCtaFiltro.idCliente !== "ALL" && (
                               <div style={{animation:'slideIn 0.2s'}}>
                                   <label style={labelStyle}>Filtrar por Viaje (Opcional)</label>
@@ -388,21 +460,13 @@ export default function AdminDashboardContent() {
                                   />
                               </div>
                           )}
-
                           <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:'15px' }}>
                               <label style={{...labelStyle, color:'var(--primary)'}}>Filtrar por Fechas (Opcional)</label>
                               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                                  <div>
-                                      <label style={{fontSize:'0.75rem', color:'#64748b'}}>Desde</label>
-                                      <input type="date" style={inputStyle} value={edoCtaFiltro.fechaInicio} onChange={e=>setEdoCtaFiltro({...edoCtaFiltro, fechaInicio:e.target.value})} />
-                                  </div>
-                                  <div>
-                                      <label style={{fontSize:'0.75rem', color:'#64748b'}}>Hasta</label>
-                                      <input type="date" style={inputStyle} value={edoCtaFiltro.fechaFin} onChange={e=>setEdoCtaFiltro({...edoCtaFiltro, fechaFin:e.target.value})} />
-                                  </div>
+                                  <div><label style={{fontSize:'0.75rem', color:'#64748b'}}>Desde</label><input type="date" style={inputStyle} value={edoCtaFiltro.fechaInicio} onChange={e=>setEdoCtaFiltro({...edoCtaFiltro, fechaInicio:e.target.value})} /></div>
+                                  <div><label style={{fontSize:'0.75rem', color:'#64748b'}}>Hasta</label><input type="date" style={inputStyle} value={edoCtaFiltro.fechaFin} onChange={e=>setEdoCtaFiltro({...edoCtaFiltro, fechaFin:e.target.value})} /></div>
                               </div>
                           </div>
-
                           <button onClick={generarReporte} disabled={!edoCtaFiltro.idCliente || loadingReporte} className="btn-primary" style={{marginTop:'10px'}}>{loadingReporte ? 'Generando...' : 'Ver Reporte'}</button>
                       </div>
                   </div>
@@ -412,7 +476,7 @@ export default function AdminDashboardContent() {
           {/* MODAL 2: REPORTE VISUAL */}
           {showModalReporte && (
             <div style={modalOverlayStyle}>
-              <div style={{ ...modalContentStyle, maxWidth: '900px', height: '90vh', padding: 0 }}>
+              <div style={{ ...modalContentStyle, maxWidth: '1000px', height: '90vh', padding: 0 }}>
                 <div className="no-print" style={{ padding: '20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0 }}>Vista Previa</h3>
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -424,7 +488,15 @@ export default function AdminDashboardContent() {
                 <div id="print-area-admin" className="print-area" style={{ padding: '40px', background: 'white', flex: 1, overflowY: 'auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', borderBottom: '2px solid #2563eb', paddingBottom: '20px' }}><div><h1 style={{ margin: '0', color: '#2563eb', fontSize: '2rem' }}>ESTADO DE CUENTA</h1><p style={{ margin: '5px 0 0', color: '#64748b' }}>{edoCtaData.cliente?.rfc || 'Sin RFC'}</p></div><div style={{ textAlign: 'right' }}><h2 style={{ margin: 0, fontSize: '1.2rem' }}>{config.nombre_empresa || 'IGO Viajes'}</h2><p style={{ margin: '5px 0 0', fontSize: '0.9rem', color: '#64748b' }}>{new Date().toLocaleDateString()}</p></div></div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '30px' }}><div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px' }}><h4 style={{ margin: '0 0 10px 0', color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Cliente</h4><div style={{ fontWeight: '700', fontSize: '1.2rem' }}>{edoCtaData.cliente?.nombre}</div>{!edoCtaData.esGeneral && edoCtaFiltro.idViaje && <div style={{marginTop:'5px', color:'var(--primary)', fontSize:'0.9rem'}}>Viaje: {dashboardData.listasRapidas.viajes.find(v => v.id == edoCtaFiltro.idViaje)?.nombre}</div>}</div><div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px' }}><h4 style={{ margin: '0 0 10px 0', color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Resumen (Filtrado)</h4><div style={{display:'flex', justifyContent:'space-between'}}><span>Total Abonos:</span><span style={{color:'#16a34a', fontWeight:'700'}}>${edoCtaData.resumen.ingresos.toLocaleString()}</span></div><div style={{display:'flex', justifyContent:'space-between'}}><span>Total Cargos:</span><span style={{color:'#ef4444', fontWeight:'700'}}>${edoCtaData.resumen.egresos.toLocaleString()}</span></div><div style={{borderTop:'1px solid #ccc', marginTop:'5px', paddingTop:'5px', fontWeight:'bold', color:'#2563eb', display:'flex', justifyContent:'space-between'}}><span>Balance Periodo:</span><span>${(edoCtaData.resumen.ingresos - edoCtaData.resumen.egresos).toLocaleString()}</span></div></div></div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}><thead><tr style={{ background: '#f1f5f9' }}><th style={{padding:'10px',textAlign:'left'}}>Fecha</th>{edoCtaData.esGeneral && <th style={{padding:'10px',textAlign:'left'}}>Cliente</th>}<th style={{padding:'10px',textAlign:'left'}}>Concepto</th><th style={{padding:'10px',textAlign:'center'}}>Tipo</th><th style={{padding:'10px',textAlign:'right'}}>Monto</th></tr></thead><tbody>{edoCtaData.transacciones.map((t,i)=>(<tr key={i}><td style={{padding:'10px',borderBottom:'1px solid #eee'}}>{t.fecha}</td>{edoCtaData.esGeneral && <td style={{padding:'10px',borderBottom:'1px solid #eee', fontWeight:'600'}}>{t.nombreCliente}</td>}<td style={{padding:'10px',borderBottom:'1px solid #eee'}}>{t.concepto}</td><td style={{padding:'10px',textAlign:'center',borderBottom:'1px solid #eee'}}><span style={{background:(t.tipoId==1||t.tipoId==3)?'#ecfdf5':'#fef2f2', color:(t.tipoId==1||t.tipoId==3)?'#10b981':'#ef4444', padding:'2px 8px', borderRadius:'10px', fontSize:'0.75rem', fontWeight:'bold'}}>{(t.tipoId==1||t.tipoId==3)?'ABONO':'CARGO'}</span></td><td style={{padding:'10px',textAlign:'right',borderBottom:'1px solid #eee'}}>${t.monto}</td></tr>))}</tbody></table>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead><tr style={{ background: '#f1f5f9' }}><th style={{padding:'8px',textAlign:'left'}}>Fecha</th>{edoCtaData.esGeneral && <th style={{padding:'8px',textAlign:'left'}}>Cliente</th>}<th style={{padding:'8px',textAlign:'left'}}>Viaje</th><th style={{padding:'8px',textAlign:'left'}}>Servicio / Detalle</th><th style={{padding:'8px',textAlign:'left'}}>Pasajero</th><th style={{padding:'8px',textAlign:'left'}}>Concepto</th><th style={{padding:'8px',textAlign:'center'}}>Tipo</th><th style={{padding:'8px',textAlign:'right'}}>Monto</th></tr></thead>
+                        <tbody>
+                            {edoCtaData.transacciones.map((t,i)=>{
+                                const esVerde=(t.tipoId==1||t.tipoId==3);
+                                return (<tr key={i}><td style={{padding:'8px',borderBottom:'1px solid #eee'}}>{t.fecha}</td>{edoCtaData.esGeneral && <td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600'}}>{t.nombreCliente}</td>}<td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600', fontSize:'0.75rem', maxWidth:'150px'}}>{t.nombreViaje}</td><td style={{padding:'8px',borderBottom:'1px solid #eee', fontSize:'0.75rem', maxWidth:'150px'}}>{t.infoServicio}</td><td style={{padding:'8px',borderBottom:'1px solid #eee', fontSize:'0.75rem'}}>{t.nombrePasajero}</td><td style={{padding:'8px',borderBottom:'1px solid #eee'}}>{t.concepto}</td><td style={{padding:'8px',textAlign:'center',borderBottom:'1px solid #eee'}}><span style={{background:esVerde?'#ecfdf5':'#fef2f2', color:esVerde?'#10b981':'#ef4444', padding:'2px 8px', borderRadius:'10px', fontSize:'0.75rem', fontWeight:'bold'}}>{esVerde?'ABONO':'CARGO'}</span></td><td style={{padding:'8px',textAlign:'right',borderBottom:'1px solid #eee'}}>${t.monto}</td></tr>)
+                            })}
+                        </tbody>
+                    </table>
                 </div>
               </div>
             </div>
@@ -476,22 +548,53 @@ export default function AdminDashboardContent() {
                                     <SearchableSelect 
                                         options={dashboardData?.listasRapidas?.viajes.filter(v => !formTransaccion.idCliente || v.idCliente == formTransaccion.idCliente)}
                                         value={formTransaccion.idViaje}
-                                        onChange={(val) => setFormTransaccion({...formTransaccion, idViaje: val, idServicio: ''})}
+                                        onChange={(val) => setFormTransaccion({...formTransaccion, idViaje: val})}
                                         placeholder={formTransaccion.idCliente ? "Buscar viaje del cliente..." : "Selecciona un cliente primero"}
                                         disabled={!formTransaccion.idCliente}
                                     />
                                   </div>
+                                  
+                                  {/* --- SELECCIÓN MÚLTIPLE DE SERVICIOS - AGRUPADA Y BLINDADA --- */}
                                   {formTransaccion.idViaje && (
                                     <>
-                                        <label style={labelStyle}>Asociar a Servicio Específico</label>
-                                        <select value={formTransaccion.idServicio} onChange={e=>setFormTransaccion({...formTransaccion, idServicio:e.target.value})} style={inputStyle}>
-                                            <option value="">-- General del Viaje --</option>
-                                            {serviciosViaje.map(s => (<option key={s.idServicio} value={s.idServicio}>{s.categoria} - {s.destino}</option>))}
-                                        </select>
+                                        <label style={{...labelStyle, marginTop:'10px'}}>Asociar a Servicios (El costo se dividirá)</label>
+                                        <div style={{ maxHeight: '200px', overflowY: 'auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding:'5px' }}>
+                                            {gruposServicios.length === 0 && <div style={{padding:'15px', textAlign:'center', color:'#94a3b8', fontSize:'0.85rem'}}>No hay servicios pendientes en este viaje.</div>}
+                                            {gruposServicios.map(grupo => {
+                                                const nomCat = getNombreCategoria(grupo.servicioBase.categoriaId);
+                                                const areAllSelected = grupo.ids.every(id => selectedServiciosFinanza.includes(id));
+                                                const isSomeSelected = grupo.ids.some(id => selectedServiciosFinanza.includes(id));
+
+                                                return (
+                                                    <div 
+                                                        key={grupo.key} 
+                                                        onClick={() => toggleGrupoServicios(grupo.ids)}
+                                                        style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: isSomeSelected ? '#eff6ff' : 'transparent' }}
+                                                    >
+                                                        <div style={{color: areAllSelected ? 'var(--primary)' : (isSomeSelected ? 'var(--primary-light)' : '#cbd5e1')}}>
+                                                            {areAllSelected ? <CheckSquare size={18}/> : (isSomeSelected ? <div style={{width:18, height:18, background:'var(--primary-light)', borderRadius:4}}></div> : <Square size={18}/>)}
+                                                        </div>
+                                                        <div style={{ flex:1 }}>
+                                                            <div style={{fontSize:'0.85rem', fontWeight:'600', color: isSomeSelected ? 'var(--primary-dark)' : '#334155'}}>
+                                                                {nomCat} - {grupo.servicioBase.destino}
+                                                                {grupo.cantidad > 1 && <span style={{marginLeft:'8px', background:'#e0f2fe', color:'#0284c7', padding:'2px 6px', borderRadius:'10px', fontSize:'0.7rem'}}>x{grupo.cantidad}</span>}
+                                                            </div>
+                                                            <div style={{fontSize:'0.75rem', color:'#64748b'}}>
+                                                                {grupo.cantidad > 1 ? (
+                                                                    <div style={{display:'flex', alignItems:'center', gap:'4px'}}><Users size={12}/> {grupo.pasajerosStr}</div>
+                                                                ) : (
+                                                                    grupo.servicioBase.nombrePasajero
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </>
                                   )}
                               </div>
-                              <div style={{ height: '100px', flexShrink: 0 }}></div>
+                              <div style={{ height: '50px', flexShrink: 0 }}></div>
                           </form>
                       </div>
                       <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
@@ -499,6 +602,24 @@ export default function AdminDashboardContent() {
                       </div>
                   </div>
               </div>
+          )}
+
+          {/* MODAL ALERTA PERSONALIZADA (NUEVO) */}
+          {customAlert.show && (
+            <div style={modalOverlayStyle}>
+              <div style={{...modalContentStyle, maxWidth:'400px', textAlign:'center', padding:'30px', maxHeight:'auto', overflowY:'visible'}}>
+                <div style={{ 
+                    background: customAlert.type === 'warning' ? '#fffbeb' : (customAlert.type === 'success' ? '#ecfdf5' : '#fef2f2'), 
+                    color: customAlert.type === 'warning' ? '#f59e0b' : (customAlert.type === 'success' ? '#10b981' : '#ef4444'), 
+                    width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' 
+                }}>
+                    {customAlert.type === 'warning' ? <AlertTriangle size={32} /> : (customAlert.type === 'success' ? <CheckCircle size={32} /> : <AlertCircle size={32} />)}
+                </div>
+                <h3 style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontSize: '1.4rem', fontWeight: '800' }}>{customAlert.title}</h3>
+                <p style={{ margin: '0 0 25px 0', color: '#64748b', fontSize: '1rem', lineHeight: '1.5' }}>{customAlert.msg}</p>
+                <button onClick={closeAlert} className="btn-primary" style={{ width: '100%', background: customAlert.type === 'warning' ? '#f59e0b' : (customAlert.type === 'success' ? '#10b981' : '#ef4444'), border: 'none' }}>Entendido</button>
+              </div>
+            </div>
           )}
       </div>
   );

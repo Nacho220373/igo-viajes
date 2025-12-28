@@ -326,6 +326,7 @@ export default function ClientDashboard({ user }) {
           resultadosTrans.forEach(res => { if (res.exito) transacciones = [...transacciones, ...res.datos]; });
           resultadosSaldos.forEach(res => { if (res.exito) saldoTotal += (res.saldo || 0); });
       } else {
+          // LLAMADA AL BACKEND: Ahora trae infoServicio, nombrePasajero y nombreViaje
           const promesas = [
               enviarPeticion({ accion: 'obtenerEstadoCuentaGlobal', idCliente: filtroReporte.idCliente, idViaje: filtroReporte.idViaje })
           ];
@@ -370,8 +371,11 @@ export default function ClientDashboard({ user }) {
 
   const descargarExcel = () => {
     if (!reporteData.transacciones.length) return showAlert("Sin Datos", "No hay información para exportar.", "info");
-    const colSpanTotal = reporteData.esGeneral ? 5 : 4;
+    
+    // Calculamos columnas extras dinámicas
+    const colSpanTotal = reporteData.esGeneral ? 8 : 7;
     const extraHeader = reporteData.esGeneral ? '<th style="background:#1e3a8a;color:white;">Cliente</th>' : '';
+    
     const rangoFechas = (filtroReporte.fechaInicio || filtroReporte.fechaFin) 
         ? `Periodo: ${filtroReporte.fechaInicio || 'Inicio'} al ${filtroReporte.fechaFin || 'Hoy'}` 
         : `Fecha Emisión: ${new Date().toLocaleDateString()}`;
@@ -383,7 +387,16 @@ export default function ClientDashboard({ user }) {
           <tr><td colspan="${colSpanTotal}" align="center">Cliente: ${reporteData.cliente?.nombre}</td></tr>
           <tr><td colspan="${colSpanTotal}" align="center">${rangoFechas}</td></tr>
           <tr><td colspan="${colSpanTotal}"></td></tr>
-          <tr><th style="background:#1e3a8a;color:white;">Fecha</th>${extraHeader}<th style="background:#1e3a8a;color:white;">Concepto</th><th style="background:#1e3a8a;color:white;">Tipo</th><th style="background:#1e3a8a;color:white;">Monto</th></tr>
+          <tr>
+            <th style="background:#1e3a8a;color:white;">Fecha</th>
+            ${extraHeader}
+            <th style="background:#1e3a8a;color:white;">Viaje</th>
+            <th style="background:#1e3a8a;color:white;">Servicio / Detalle</th>
+            <th style="background:#1e3a8a;color:white;">Pasajero</th>
+            <th style="background:#1e3a8a;color:white;">Concepto</th>
+            <th style="background:#1e3a8a;color:white;">Tipo</th>
+            <th style="background:#1e3a8a;color:white;">Monto</th>
+          </tr>
     `;
     
     reporteData.transacciones.forEach(t => {
@@ -391,7 +404,17 @@ export default function ClientDashboard({ user }) {
       const tipoTexto = t.tipoId == 1 ? 'PAGO' : (t.tipoId == 3 ? 'ABONO CTA' : 'CARGO');
       const monto = parseFloat(String(t.monto).replace(/[^0-9.-]+/g,"")) || 0;
       const clientCell = reporteData.esGeneral ? `<td>${t.nombreCliente}</td>` : '';
-      htmlTable += `<tr><td>${t.fecha}</td>${clientCell}<td>${t.concepto}</td><td style="color:${esAbono ? '#16a34a' : '#dc2626'}">${tipoTexto}</td><td style="color:${esAbono ? '#16a34a' : '#dc2626'}">$${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td></tr>`;
+      
+      htmlTable += `<tr>
+        <td>${t.fecha}</td>
+        ${clientCell}
+        <td>${t.nombreViaje || ''}</td>
+        <td>${t.infoServicio || ''}</td>
+        <td>${t.nombrePasajero || ''}</td>
+        <td>${t.concepto}</td>
+        <td style="color:${esAbono ? '#16a34a' : '#dc2626'}">${tipoTexto}</td>
+        <td style="color:${esAbono ? '#16a34a' : '#dc2626'}">$${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td>
+      </tr>`;
     });
     
     const saldoFinal = reporteData.resumen.ingresos - reporteData.resumen.egresos;
@@ -411,11 +434,11 @@ export default function ClientDashboard({ user }) {
     
     // Configuración ajustada al estilo Admin (sin pagebreak agresivo para evitar huecos)
     const opt = { 
-        margin: [10, 10], 
+        margin: [5, 5], 
         filename: `EdoCta_${new Date().toISOString().slice(0,10)}.pdf`, 
         image: { type: 'jpeg', quality: 0.98 }, 
         html2canvas: { scale: 2 }, 
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } // Landscape para que quepan las columnas
     };
     
     html2pdf().set(opt).from(element).save().then(() => setGenerandoPDF(false));
@@ -819,7 +842,7 @@ export default function ClientDashboard({ user }) {
 
       {showModalReporte && (
         <div style={modalOverlayStyle}>
-            <div style={{ ...modalContentStyle, maxWidth: '800px', height: '90vh', padding: 0 }}>
+            <div style={{ ...modalContentStyle, maxWidth: '1000px', height: '90vh', padding: 0 }}>
                 {/* TOOLBAR */}
                 <div className="no-print" style={{ padding: '20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0 }}>Vista Previa</h3>
@@ -853,19 +876,31 @@ export default function ClientDashboard({ user }) {
                         </div>
                     </div>
                     <h3 style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '15px' }}>Detalle de Movimientos</h3>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                        <thead><tr style={{ background: '#f1f5f9' }}><th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Fecha</th>{reporteData.esGeneral && <th style={{padding:'10px',textAlign:'left',borderBottom:'1px solid #eee'}}>Cliente</th>}<th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Concepto</th><th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>Tipo</th><th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Monto</th></tr></thead>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead><tr style={{ background: '#f1f5f9' }}>
+                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Fecha</th>
+                            {reporteData.esGeneral && <th style={{padding:'8px',textAlign:'left',borderBottom:'1px solid #eee'}}>Cliente</th>}
+                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Viaje</th>
+                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Servicio</th>
+                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Pasajero</th>
+                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Concepto</th>
+                            <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>Tipo</th>
+                            <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Monto</th>
+                        </tr></thead>
                         <tbody>
                             {reporteData.transacciones.map((t, i) => {
                                 const esVerde = (t.tipoId == 1 || t.tipoId == 3);
                                 const tipoEtiqueta = t.tipoId == 1 ? 'PAGO' : (t.tipoId == 3 ? 'ABONO CTA' : 'CARGO');
                                 return (
                                     <tr key={i} style={{pageBreakInside: 'avoid'}}>
-                                        <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{t.fecha}</td>
-                                        {reporteData.esGeneral && <td style={{padding:'10px',borderBottom:'1px solid #eee', fontWeight:'600'}}>{t.nombreCliente}</td>}
-                                        <td style={{ padding: '10px', borderBottom: '1px solid #f1f5f9' }}>{t.concepto}</td>
-                                        <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}><span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: '700', background: esVerde ? '#ecfdf5' : '#fef2f2', color: esVerde ? '#10b981' : '#ef4444' }}>{tipoEtiqueta}</span></td>
-                                        <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: '600', color: esVerde ? '#10b981' : 'var(--text-main)' }}>${t.monto}</td>
+                                        <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{t.fecha}</td>
+                                        {reporteData.esGeneral && <td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600'}}>{t.nombreCliente}</td>}
+                                        <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', fontWeight:'600', fontSize:'0.75rem', maxWidth:'150px' }}>{t.nombreViaje}</td>
+                                        <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', fontSize:'0.75rem', maxWidth:'150px' }}>{t.infoServicio}</td>
+                                        <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', fontSize:'0.75rem' }}>{t.nombrePasajero}</td>
+                                        <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{t.concepto}</td>
+                                        <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}><span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: '700', background: esVerde ? '#ecfdf5' : '#fef2f2', color: esVerde ? '#10b981' : '#ef4444' }}>{tipoEtiqueta}</span></td>
+                                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: '600', color: esVerde ? '#10b981' : 'var(--text-main)' }}>${t.monto}</td>
                                     </tr>
                                 );
                             })}
