@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext';
-import { LogOut, ChevronDown, User, Briefcase, Shield } from 'lucide-react';
+import { LogOut, ChevronDown, User, Briefcase, Shield, Smile, CheckCircle, AlertCircle, HelpCircle, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { enviarPeticion } from '../services/api';
 
 // IMPORTS DE LOS DASHBOARDS ESPECIALIZADOS
 import ClientDashboard from './client/ClientDashboard';
@@ -9,7 +10,7 @@ import AdminDashboardContent from './admin/AdminDashboardContent';
 
 // Componente Interno: Selector de Perfiles
 const ProfileSwitcher = () => {
-  const { user, profiles, activeProfile, switchProfile, logout } = useAuth();
+  const { profiles, activeProfile, switchProfile, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -88,44 +89,152 @@ const ProfileSwitcher = () => {
 };
 
 export default function Dashboard() {
-  const { user, activeProfile } = useAuth();
+  const { user, activeProfile, profiles } = useAuth();
+  const [creatingPassenger, setCreatingPassenger] = useState(false);
+  
+  // ESTADO PARA ALERTAS PERSONALIZADAS
+  const [alertConfig, setAlertConfig] = useState({ show: false, type: '', title: '', message: '', onConfirm: null });
+
+  // Verificamos si el usuario ya tiene un perfil de Pasajero
+  const hasPassengerProfile = profiles.some(p => p.tipo === 'Pasajero');
+
+  // --- MANEJO DE ALERTAS ---
+  const showAlert = (title, message, type = 'info') => {
+      setAlertConfig({ show: true, type, title, message, onConfirm: null });
+  };
+
+  const showConfirm = (title, message, onConfirm) => {
+      setAlertConfig({ show: true, type: 'confirm', title, message, onConfirm });
+  };
+
+  const closeAlert = () => {
+      // Si es mensaje de éxito de creación, recargamos al cerrar
+      if (alertConfig.title === "¡Perfil Activado!" && alertConfig.type === 'success') {
+          window.location.reload();
+      }
+      setAlertConfig({ ...alertConfig, show: false });
+  };
+
+  // --- LÓGICA DE ACTIVACIÓN ---
+  const solicitarActivacion = () => {
+      showConfirm(
+          "¿Activar modo viajero?",
+          "Esto creará un perfil de pasajero vinculado a tu cuenta actual para que puedas ver tus viajes personales.",
+          crearPerfilPasajero
+      );
+  };
+
+  const crearPerfilPasajero = async () => {
+      setCreatingPassenger(true);
+      
+      const res = await enviarPeticion({ 
+          accion: 'crearPerfilPasajeroPropio', 
+          idUsuario: user.id, 
+          nombre: user.nombre 
+      });
+
+      if (res.exito) {
+          // --- PARCHE DE SESIÓN (SOLUCIÓN CLAVE) ---
+          // 1. Leemos la sesión actual
+          const currentSession = JSON.parse(localStorage.getItem('igo_session') || '{}');
+          // 2. Si el backend nos devolvió los perfiles nuevos, actualizamos la sesión
+          if (res.perfiles) {
+              currentSession.profiles = res.perfiles;
+              localStorage.setItem('igo_session', JSON.stringify(currentSession));
+          }
+          
+          showAlert("¡Perfil Activado!", "Tu perfil de viajero ha sido creado. La página se recargará para mostrar tu nueva opción.", "success");
+      } else {
+          showAlert("Error", res.error || "No se pudo crear el perfil.", "error");
+      }
+      setCreatingPassenger(false);
+  };
 
   if (!user || !activeProfile) return <div style={{textAlign:'center', padding:'50px', color:'#64748b'}}>Cargando perfil...</div>;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
-      {/* BARRA SUPERIOR DE PERFIL (Ya no flota sobre el contenido, empuja hacia abajo) */}
+      {/* BARRA SUPERIOR DE PERFIL */}
       <div style={{ 
         background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '15px 20px', 
-        display: 'flex', justifyContent: 'flex-end', alignItems: 'center' 
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap:'10px'
       }}>
+         {/* BOTÓN DE AUTO-CREACIÓN DE PERFIL PASAJERO */}
+         <div>
+            {!hasPassengerProfile && (
+                <button 
+                    onClick={solicitarActivacion}
+                    disabled={creatingPassenger}
+                    style={{
+                        background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0',
+                        padding: '8px 16px', borderRadius: '50px', cursor: 'pointer',
+                        fontSize: '0.85rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px'
+                    }}
+                >
+                    <Smile size={16}/> {creatingPassenger ? 'Activando...' : 'Activar mi modo Viajero'}
+                </button>
+            )}
+         </div>
+
          <ProfileSwitcher />
       </div>
 
       {/* CONTENIDO PRINCIPAL */}
       <div style={{ flex: 1 }}>
-        {/* 1. ROL ADMINISTRADOR */}
-        {activeProfile.tipo === 'Administrador' && (
-           <AdminDashboardContent />
-        )}
+        {activeProfile.tipo === 'Administrador' && ( <AdminDashboardContent /> )}
 
-        {/* 2. ROL CLIENTE */}
         {activeProfile.tipo === 'Cliente' && (
           <ClientDashboard 
-              // Inyectamos ID Cliente y Tipo para que el componente sepa qué pedir
               user={{ ...user, idCliente: activeProfile.id, nombre: activeProfile.nombre, rol: 'Cliente' }} 
           />
         )}
 
-        {/* 3. ROL PASAJERO */}
         {activeProfile.tipo === 'Pasajero' && (
           <PassengerDashboard 
-              // Inyectamos ID Pasajero y Tipo
               user={{ ...user, idPasajero: activeProfile.id, nombre: activeProfile.nombre, rol: 'Pasajero' }} 
           />
         )}
       </div>
+
+      {/* MODAL DE ALERTAS PERSONALIZADO */}
+      {alertConfig.show && (
+        <div style={modalOverlayStyle}>
+            <div style={{ ...modalContentStyle, maxWidth: '400px', padding: '30px', textAlign: 'center' }}>
+                <div style={{ 
+                    margin: '0 auto 20px', width: '60px', height: '60px', borderRadius: '50%', 
+                    background: alertConfig.type === 'error' ? '#fef2f2' : (alertConfig.type === 'success' ? '#ecfdf5' : '#eff6ff'), 
+                    color: alertConfig.type === 'error' ? '#ef4444' : (alertConfig.type === 'success' ? '#10b981' : '#2563eb'), 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                }}>
+                    {alertConfig.type === 'error' ? <AlertCircle size={32}/> : (alertConfig.type === 'success' ? <CheckCircle size={32}/> : (alertConfig.type === 'confirm' ? <HelpCircle size={32}/> : <AlertCircle size={32}/>))}
+                </div>
+                <h3 style={{ margin: '0 0 10px', fontSize: '1.4rem', color: 'var(--text-main)' }}>{alertConfig.title}</h3>
+                <p style={{ margin: '0 0 25px', color: '#64748b' }}>{alertConfig.message}</p>
+                
+                {alertConfig.type === 'confirm' ? (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={closeAlert} style={{ flex: 1, padding: '12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '50px', fontWeight: '700', cursor: 'pointer', color: '#64748b' }}>Cancelar</button>
+                        <button onClick={() => { alertConfig.onConfirm(); closeAlert(); }} style={{ flex: 1, padding: '12px', border: 'none', background: 'var(--primary)', color: 'white', borderRadius: '50px', fontWeight: '700', cursor: 'pointer' }}>Sí, Activar</button>
+                    </div>
+                ) : (
+                    <button onClick={closeAlert} className="btn-primary" style={{ width: '100%' }}>Entendido</button>
+                )}
+            </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// Estilos necesarios para el modal (reutilizados para consistencia)
+const modalOverlayStyle = { 
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+    background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', 
+    zIndex: 9999, padding: '20px', backdropFilter: 'blur(4px)' 
+};
+const modalContentStyle = { 
+    background: 'white', borderRadius: '24px', width: '100%', 
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', 
+    display: 'flex', flexDirection: 'column' 
+};

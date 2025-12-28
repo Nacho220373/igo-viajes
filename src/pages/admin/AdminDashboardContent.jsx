@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminDashboardContent() {
+  // ... (Resto de imports y estados iniciales sin cambios)
   const { user, logout } = useAuth();
   const { config } = useConfig();
   const navigate = useNavigate();
@@ -28,7 +29,6 @@ export default function AdminDashboardContent() {
   const [showModalReporte, setShowModalReporte] = useState(false);
 
   // ESTADOS ESTADO DE CUENTA
-  // AÑADIDO: Campos de fecha inicio y fin
   const [edoCtaFiltro, setEdoCtaFiltro] = useState({ idCliente: '', idViaje: '', fechaInicio: '', fechaFin: '' });
   const [edoCtaData, setEdoCtaData] = useState({ transacciones: [], cliente: null, resumen: {ingresos:0, egresos:0}, esGeneral: false });
   const [loadingReporte, setLoadingReporte] = useState(false);
@@ -102,12 +102,10 @@ export default function AdminDashboardContent() {
   const parseFechaLocal = (fechaStr) => {
       if (!fechaStr) return null;
       try {
-          // Asumimos formato dd/mm/yyyy que viene del sheet o visualización
           if (fechaStr.includes('/')) {
               const [dia, mes, anio] = fechaStr.split('/');
               return new Date(anio, mes - 1, dia);
           }
-          // Formato ISO yyyy-mm-dd
           return new Date(fechaStr);
       } catch (e) { return null; }
   };
@@ -173,11 +171,9 @@ export default function AdminDashboardContent() {
   const descargarExcel = () => {
     if (!edoCtaData.transacciones.length) return alert("No hay datos para exportar");
     
-    // Si es reporte general, agregamos columna cliente, si no, mantenemos el formato limpio del cliente
     const colSpanTotal = edoCtaData.esGeneral ? 5 : 4; 
     const extraHeader = edoCtaData.esGeneral ? '<th style="background:#1e3a8a;color:white;">Cliente</th>' : '';
     
-    // Formato de Fechas para el título
     const rangoFechas = (edoCtaFiltro.fechaInicio || edoCtaFiltro.fechaFin) 
         ? `Periodo: ${edoCtaFiltro.fechaInicio || 'Inicio'} al ${edoCtaFiltro.fechaFin || 'Hoy'}` 
         : `Fecha Emisión: ${new Date().toLocaleDateString()}`;
@@ -217,7 +213,6 @@ export default function AdminDashboardContent() {
         </tr>`;
     });
 
-    // FOOTER CON TOTALES (Estilo Cliente)
     const saldoFinal = edoCtaData.resumen.ingresos - edoCtaData.resumen.egresos;
     
     htmlTable += `
@@ -243,7 +238,6 @@ export default function AdminDashboardContent() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    // Nombre del archivo limpio
     const cleanName = edoCtaData.cliente?.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     link.download = `EdoCta_${cleanName}_${new Date().toISOString().slice(0,10)}.xls`;
     document.body.appendChild(link);
@@ -251,7 +245,6 @@ export default function AdminDashboardContent() {
     document.body.removeChild(link);
   };
 
-  // --- DESCARGAR PDF ---
   const descargarPDF = () => {
     const element = document.getElementById('print-area-admin');
     if (!element) return;
@@ -348,14 +341,16 @@ export default function AdminDashboardContent() {
                     <div className="dashboard-card" style={{ padding: '24px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'10px' }}><Bell size={20} color="#f59e0b"/> Próximos Servicios</h3>
-                            <span style={{ background: '#fffbeb', color: '#f59e0b', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>7 días</span>
+                            {/* --- CAMBIO VISUAL: "3 horas" EN LUGAR DE "7 días" --- */}
+                            <span style={{ background: '#fffbeb', color: '#f59e0b', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>3 horas</span>
                         </div>
                         {dashboardData.recordatorios.length === 0 ? <p style={{color:'#94a3b8', textAlign:'center'}}>Sin servicios próximos.</p> : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 {dashboardData.recordatorios.map((r, i) => (
                                     <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                                         <div style={{ background: '#f1f5f9', padding: '8px', borderRadius: '10px', minWidth:'40px', textAlign:'center' }}><div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8' }}>ID</div><div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>{r.idServicio}</div></div>
-                                        <div><div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{r.categoria === 1 ? 'Vuelo' : 'Servicio'} a {r.destino}</div><div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={12}/> {r.fecha}</div></div>
+                                        {/* --- CAMBIO: Mostrar la hora en la lista --- */}
+                                        <div><div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{r.categoria === 1 ? 'Vuelo' : 'Servicio'} a {r.destino}</div><div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={12}/> Hora: {r.fecha}</div></div>
                                     </div>
                                 ))}
                             </div>
@@ -365,7 +360,8 @@ export default function AdminDashboardContent() {
               </>
           )}
 
-          {/* MODAL 1: SELECTOR PARA ESTADO DE CUENTA (CON FILTRO FECHA) */}
+          {/* ... (Resto de modales iguales) ... */}
+          {/* MODAL 1: SELECTOR PARA ESTADO DE CUENTA */}
           {showModalSelectorEdoCta && (
               <div style={modalOverlayStyle}>
                   <div style={{...modalContentStyle, maxWidth:'450px', maxHeight:'auto', overflow:'visible'}}>
@@ -413,7 +409,7 @@ export default function AdminDashboardContent() {
               </div>
           )}
 
-          {/* MODAL 2: REPORTE VISUAL (ESTADO DE CUENTA) */}
+          {/* MODAL 2: REPORTE VISUAL */}
           {showModalReporte && (
             <div style={modalOverlayStyle}>
               <div style={{ ...modalContentStyle, maxWidth: '900px', height: '90vh', padding: 0 }}>
@@ -434,19 +430,14 @@ export default function AdminDashboardContent() {
             </div>
           )}
 
-          {/* MODAL TRANSACCIÓN RÁPIDA (ACTUALIZADO CON STICKY FOOTER) */}
+          {/* MODAL TRANSACCIÓN RÁPIDA */}
           {showModalTransaccion && (
               <div style={modalOverlayStyle}>
-                  {/* Contenedor principal con flex vertical */}
                   <div style={{...modalContentStyle, maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column'}}> 
-                      
-                      {/* HEADER FIJO */}
                       <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                           <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Registrar Movimiento</h2>
                           <button onClick={() => setShowModalTransaccion(false)} style={closeBtnStyle}><X size={18}/></button>
                       </div>
-
-                      {/* BODY SCROLLEABLE */}
                       <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
                           <form id="form-transaccion" onSubmit={handleGuardarTransaccion} style={{ display: 'grid', gap: '15px' }}>
                               <div style={{background:'#f1f5f9', padding:'10px', borderRadius:'10px', display:'flex', gap:'10px'}}>
@@ -454,12 +445,10 @@ export default function AdminDashboardContent() {
                                   <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='2'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='2'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="2" checked={formTransaccion.tipo=='2'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Egreso</label>
                                   <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='3'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='3'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="3" checked={formTransaccion.tipo=='3'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Abono</label>
                               </div>
-                              
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                   <div><label style={labelStyle}>Monto</label><input required type="number" step="0.01" value={formTransaccion.monto} onChange={e=>setFormTransaccion({...formTransaccion, monto:e.target.value})} style={inputStyle} placeholder="0.00" /></div>
                                   <div><label style={labelStyle}>Moneda</label><select value={formTransaccion.moneda} onChange={e=>setFormTransaccion({...formTransaccion, moneda:e.target.value})} style={inputStyle}>{listasFinancieras.monedas.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
                               </div>
-                              
                               <label style={labelStyle}>Cliente *</label>
                               <SearchableSelect 
                                 options={dashboardData?.listasRapidas?.clientes}
@@ -468,10 +457,8 @@ export default function AdminDashboardContent() {
                                 placeholder="Seleccionar Cliente..."
                                 required
                               />
-
                               <label style={labelStyle}>Concepto</label><input required type="text" value={formTransaccion.concepto} onChange={e=>setFormTransaccion({...formTransaccion, concepto:e.target.value})} style={inputStyle} placeholder="Ej. Depósito inicial" />
                               <label style={labelStyle}>Forma de Pago</label><select value={formTransaccion.formaPago} onChange={e=>setFormTransaccion({...formTransaccion, formaPago:e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{listasFinancieras.formasPago.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}</select>
-                              
                               {formTransaccion.tipo == '2' && (
                                 <div>
                                     <label style={labelStyle}>Proveedor (Para Gasto)</label>
@@ -483,7 +470,6 @@ export default function AdminDashboardContent() {
                                     />
                                 </div>
                               )}
-                              
                               <div style={{background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '10px'}}>
                                   <label style={{...labelStyle, color:'var(--primary)'}}>Asociar a Viaje (Opcional)</label>
                                   <div style={{marginBottom:'10px'}}>
@@ -495,7 +481,6 @@ export default function AdminDashboardContent() {
                                         disabled={!formTransaccion.idCliente}
                                     />
                                   </div>
-                                  
                                   {formTransaccion.idViaje && (
                                     <>
                                         <label style={labelStyle}>Asociar a Servicio Específico</label>
@@ -506,13 +491,9 @@ export default function AdminDashboardContent() {
                                     </>
                                   )}
                               </div>
-                              
-                              {/* ESPACIO EXTRA PARA SCROLL (COLCHÓN) */}
                               <div style={{ height: '100px', flexShrink: 0 }}></div>
                           </form>
                       </div>
-
-                      {/* FOOTER FIJO */}
                       <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
                           <button type="submit" form="form-transaccion" className="btn-primary" disabled={procesando}>{procesando ? '...' : 'Registrar'}</button>
                       </div>

@@ -1,10 +1,36 @@
 #root {
-  max-width: 1280px;
+  max-width: 100%; /* Aseguramos ancho completo */
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 0; /* Quitamos padding global que forzaba márgenes */
+  text-align: left; /* Alineación natural para lectura */
 }
 
+/* Clases de utilidad para contenedores responsivos */
+.responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+/* Ajuste para evitar scroll horizontal en tarjetas */
+.card-content {
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: 1fr; /* Una sola columna en móvil */
+  }
+  
+  /* Ajuste de botones en móvil */
+  button {
+    width: 100%; /* Botones full width para facilitar toque */
+    justify-content: center;
+  }
+}
+
+/* Logos y Animaciones (Mantenidos) */
 .logo {
   height: 6em;
   padding: 1.5em;

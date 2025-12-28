@@ -34,6 +34,27 @@ body {
   color: var(--text-main);
   display: block; 
   overflow-x: hidden;
+  /* Fix para scroll en iOS */
+  -webkit-overflow-scrolling: touch; 
+}
+
+/* === TIPOGRAFÍA RESPONSIVA === */
+h1 {
+  font-size: clamp(1.5rem, 4vw, 2rem); /* Se adapta entre 1.5rem y 2rem */
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: clamp(1.2rem, 3vw, 1.5rem);
+}
+
+h3 {
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+}
+
+p {
+  font-size: clamp(0.9rem, 2vw, 1rem);
+  line-height: 1.5;
 }
 
 /* === LAYOUTS ESPECÍFICOS === */
@@ -57,7 +78,7 @@ body {
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  padding: 3rem;
+  padding: clamp(1.5rem, 5vw, 3rem); /* Padding adaptable */
   border-radius: var(--radius-card);
   border: 1px solid var(--glass-border);
   width: 100%;
@@ -80,9 +101,10 @@ body {
 .dashboard-container {
   max-width: 1400px; 
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: clamp(20px, 4vw, 40px); /* Menos padding en móvil */
   width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden; /* Evita scroll horizontal indeseado */
 }
 
 /* --- TARJETAS DASHBOARD --- */
@@ -157,7 +179,6 @@ body {
   width: 90px;
   height: 90px;
   background: var(--white);
-  /* Cambiamos 50% por 24px para hacerlo cuadrado redondeado (Squircle) */
   border-radius: 24px; 
   display: flex;
   align-items: center;
@@ -168,7 +189,6 @@ body {
   border: 4px solid rgba(255,255,255,0.9);
   position: relative;
   z-index: 10;
-  /* Añadimos un pequeño giro o transformación al hover opcional si quisieras */
   transition: transform 0.3s;
 }
 
@@ -180,7 +200,7 @@ body {
 .login-header h1 {
   color: var(--text-main);
   margin: 0;
-  font-size: 1.8rem;
+  font-size: clamp(1.5rem, 5vw, 1.8rem); /* Texto adaptable */
   font-weight: 800;
   letter-spacing: -0.5px;
   line-height: 1.2;
@@ -227,14 +247,25 @@ body {
 .error-message { background: #fef2f2; color: var(--danger); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; text-align: center; font-weight: 700; border: 1px solid #fee2e2; }
 
 @media (max-width: 480px) {
-  .auth-card { padding: 2rem 1.5rem; }
-  .dashboard-container { padding: 20px 15px; }
+  .auth-card { 
+      padding: 2rem 1.5rem; 
+      max-width: 90%; /* Evita que toque los bordes */
+  }
+  .dashboard-container { 
+      padding: 20px 15px; 
+  }
   
-  /* Ajustamos un poco el logo en móvil */
+  /* Ajustamos el logo en móvil */
   .logo-box {
     width: 70px;
     height: 70px;
     border-radius: 20px;
+  }
+
+  /* Ajuste para evitar encimado de textos */
+  h1, h2, h3 {
+      word-wrap: break-word; /* Rompe palabras largas si es necesario */
+      overflow-wrap: break-word;
   }
 }
 
@@ -243,16 +274,13 @@ body {
   /* 1. Márgenes de hoja: Pequeños pero suficientes para evitar cortes */
   @page {
     size: auto;
-    margin: 5mm 10mm; /* 5mm arriba/abajo, 10mm lados */
+    margin: 5mm 10mm; 
   }
 
-  /* 2. Ocultar TODO el cuerpo para que no haya fondo gris ni elementos extra */
   body > * {
     display: none !important;
   }
 
-  /* 3. Forzar el contenedor del modal a ser transparente y de ancho completo */
-  /* Usamos un selector general para encontrar el modal wrapper */
   body > div:has(.print-area) {
     display: block !important;
     position: absolute !important;
@@ -262,12 +290,11 @@ body {
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: white !important; /* IMPORTANTE: Fondo blanco para tapar gris */
+    background: white !important; 
     overflow: visible !important;
     z-index: 9999 !important;
   }
 
-  /* 4. Estilos específicos del Área de Impresión (Reporte) */
   .print-area {
     display: block !important;
     visibility: visible !important;
@@ -280,12 +307,9 @@ body {
     background: white !important;
     box-shadow: none !important;
     border: none !important;
-    
-    /* TRUCO CLAVE: Reducir escala al 85% para que la tabla ancha quepa */
     transform: scale(0.85);
     transform-origin: top left;
-    width: 117% !important; /* Compensar la escala (100 / 0.85 = 117.6) */
-    
+    width: 117% !important; 
     font-size: 12px !important;
   }
 
@@ -293,13 +317,11 @@ body {
     visibility: visible !important;
   }
 
-  /* 5. Asegurar impresión de colores de fondo (backgrounds) */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* 6. Ajuste de tablas para que no se corten */
   .print-area table {
     width: 100% !important;
     table-layout: auto !important;
@@ -307,12 +329,11 @@ body {
   }
   
   .print-area td, .print-area th {
-    white-space: normal !important; /* Permitir saltos de línea */
-    word-wrap: break-word !important; /* Romper palabras largas */
+    white-space: normal !important; 
+    word-wrap: break-word !important; 
     padding: 4px !important;
   }
 
-  /* 7. Ocultar botones no imprimibles */
   .no-print {
     display: none !important;
   }

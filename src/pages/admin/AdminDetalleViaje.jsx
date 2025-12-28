@@ -81,12 +81,20 @@ export default function AdminDetalleViaje() {
 
       const resPasajeros = await enviarPeticion({ accion: 'obtenerPasajeros', rol: user.rol });
       if (resPasajeros.exito && resInfo.exito) {
-          // Filtrar pasajeros asociados al cliente de este viaje
-          const pasajerosCliente = resPasajeros.datos.filter(p => p.idCliente == resInfo.viaje.idCliente);
+          // --- LÓGICA MULTI-CLIENTE (Punto 2) ---
+          // Si es Admin, mostramos TODOS los pasajeros (no filtramos por idCliente del viaje).
+          // Si es Cliente, seguimos filtrando para privacidad.
+          let pasajerosDisponibles = resPasajeros.datos;
+          
+          if (user.rol !== 'Administrador' && user.rol !== 'Asistente') {
+             pasajerosDisponibles = resPasajeros.datos.filter(p => p.idCliente == resInfo.viaje.idCliente);
+          }
+
           // Normalizamos para SearchableSelect (necesita propiedad 'nombre')
-          const pasajerosNormalizados = pasajerosCliente.map(p => ({
+          const pasajerosNormalizados = pasajerosDisponibles.map(p => ({
               ...p,
-              nombre: `${p.nombre} ${p.apellidoP}` // Nombre completo para la búsqueda
+              // Agregamos el nombre de su empresa para distinguir si hay homónimos
+              nombre: `${p.nombre} ${p.apellidoP} (${p.nombreCliente})` 
           }));
           setPasajeros(pasajerosNormalizados);
       }
@@ -190,6 +198,7 @@ export default function AdminDetalleViaje() {
     if (!formServicio.idPasajero) return showAlert("Falta Información", "Por favor selecciona un pasajero.", "warning");
     
     setProcesando(true);
+    // Para el backend, si el pasajero es de otra empresa, no importa, solo guardamos el ID Pasajero.
     const servicioEnviar = { ...formServicio, idViaje: id, idCliente: viajeInfo.idCliente, idServicio: currentIdServicio };
     const accion = isEditingServicio ? 'editarServicio' : 'agregarServicio';
     const respuesta = await enviarPeticion({ accion, servicio: servicioEnviar });
@@ -291,7 +300,7 @@ export default function AdminDetalleViaje() {
             </p>
           </div>
 
-          {/* CALIFICACIÓN GENERAL DEL VIAJE (NUEVO) */}
+          {/* CALIFICACIÓN GENERAL DEL VIAJE */}
           {viajeInfo && viajeInfo.calificacion && (
               <div style={{ background: '#fffbeb', padding: '10px 15px', borderRadius: '12px', border: '1px solid #fcd34d', display: 'flex', gap: '15px', alignItems: 'center', maxWidth: '400px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#b45309' }}>
@@ -369,7 +378,7 @@ export default function AdminDetalleViaje() {
                             </div>
                         </div>
 
-                        {/* VISUALIZACIÓN DE CALIFICACIÓN DEL SERVICIO (NUEVO) */}
+                        {/* VISUALIZACIÓN DE CALIFICACIÓN DEL SERVICIO */}
                         {s.calificacion && (
                             <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fffbeb', padding: '4px 10px', borderRadius: '8px', color: '#b45309', fontWeight: '800', fontSize: '0.9rem' }}>

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { enviarPeticion } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-// IMPORTAMOS EL NUEVO COMPONENTE
 import SearchableSelect from '../../components/SearchableSelect';
-import { Plus, Search, User, Building, Phone, Mail, X, ArrowLeft, CreditCard, FileText, MapPin, Globe, Flag, Hash, Calendar, LayoutGrid, LayoutList, Copy, Check, Loader } from 'lucide-react';
+import { Plus, Search, User, Building, Phone, Mail, X, ArrowLeft, CreditCard, FileText, MapPin, Flag, Calendar, LayoutGrid, LayoutList, Copy, Check, Loader, UserCheck } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function AdminPasajeros() {
@@ -15,6 +14,7 @@ export default function AdminPasajeros() {
   const [clientes, setClientes] = useState([]); 
   const [nacionalidades, setNacionalidades] = useState([]);
   const [paises, setPaises] = useState([]); 
+  const [usuariosLibres, setUsuariosLibres] = useState([]); // Lista de usuarios para vincular
   
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -31,7 +31,8 @@ export default function AdminPasajeros() {
   const formInicial = {
     idCliente: '', nombre: '', apellidoP: '', apellidoM: '', fechaNacimiento: '', 
     nacionalidad: '', pasaporte: '', visa: '', pais: '', ciudad: '', colonia: '', 
-    calle: '', numExt: '', numInt: '', cp: '', lada: '', telefono: '', correo: ''
+    calle: '', numExt: '', numInt: '', cp: '', lada: '', telefono: '', correo: '',
+    idUsuario: '' // NUEVO CAMPO DE VINCULACIÓN
   };
   const [form, setForm] = useState(formInicial);
 
@@ -46,14 +47,16 @@ export default function AdminPasajeros() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [resPasajeros, resClientes, resListas] = await Promise.all([
+      const [resPasajeros, resClientes, resListas, resUsuarios] = await Promise.all([
         enviarPeticion({ accion: 'obtenerPasajeros', rol: user.rol }),
         enviarPeticion({ accion: 'obtenerClientes', rol: user.rol }),
-        enviarPeticion({ accion: 'obtenerListas' })
+        enviarPeticion({ accion: 'obtenerListas' }),
+        enviarPeticion({ accion: 'obtenerUsuariosLibres' }) // Traer usuarios para vincular
       ]);
 
       if (resPasajeros.exito) setPasajeros(resPasajeros.datos);
       if (resClientes.exito) setClientes(resClientes.datos);
+      if (resUsuarios.exito) setUsuariosLibres(resUsuarios.usuarios);
       
       if (resListas.exito && resListas.listas) {
          setPaises(resListas.listas.paises || []);
@@ -66,9 +69,14 @@ export default function AdminPasajeros() {
 
   const handleGuardar = async (e) => {
     e.preventDefault();
-    if (!form.idCliente) return alert("Debes seleccionar un Cliente (Empresa/Titular)");
+    if (!form.idCliente) return alert("Debes seleccionar un Cliente (Empresa/Titular) o asignar uno Genérico.");
     setProcesando(true);
-    const respuesta = await enviarPeticion({ accion: 'agregarPasajero', pasajero: form });
+    // Si estamos editando, usamos 'editarPasajero', si no 'agregarPasajero'
+    // Como tu backend usa 'agregarPasajero' para nuevos, asumimos que este modal es solo para nuevos por ahora
+    // o adaptamos si el form tiene ID.
+    const accion = form.id ? 'editarPasajero' : 'agregarPasajero';
+    
+    const respuesta = await enviarPeticion({ accion: accion, pasajero: form });
     if (respuesta.exito) {
       setShowModal(false); setForm(formInicial); setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
@@ -76,6 +84,24 @@ export default function AdminPasajeros() {
       if (refresh.exito) setPasajeros(refresh.datos);
     } else { alert("Error: " + respuesta.error); }
     setProcesando(false);
+  };
+
+  // Función para abrir modal en modo Edición (si quisieras habilitarlo)
+  const handleEditar = (p) => {
+      // Convertir fecha para input date (yyyy-MM-dd)
+      let fechaInput = '';
+      if(p.fechaNacimiento && p.fechaNacimiento.includes('/')) {
+          const [d, m, y] = p.fechaNacimiento.split('/');
+          fechaInput = `${y}-${m}-${d}`; 
+      }
+      
+      setForm({
+          ...p,
+          fechaNacimiento: fechaInput,
+          // Mapeamos campos que pueden faltar
+          idUsuario: p.idUsuario || ''
+      });
+      setShowModal(true);
   };
 
   const getInviteUrl = (token) => `${window.location.origin}/invite?token=${token}`;
@@ -114,7 +140,7 @@ export default function AdminPasajeros() {
 
   return (
     <div className="dashboard-container">
-      {/* HEADER (Igual) */}
+      {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
              <button onClick={() => navigate('/')} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}><ArrowLeft size={20} /></button>
@@ -125,7 +151,7 @@ export default function AdminPasajeros() {
                 <button onClick={() => setViewMode('grid')} style={{ padding: '8px', border: 'none', background: viewMode === 'grid' ? 'white' : 'transparent', borderRadius: '8px', color: viewMode === 'grid' ? 'var(--primary)' : '#94a3b8', cursor: 'pointer', display:'flex', boxShadow: viewMode==='grid'?'0 2px 5px rgba(0,0,0,0.05)':'' }}><LayoutGrid size={18}/></button>
                 <button onClick={() => setViewMode('list')} style={{ padding: '8px', border: 'none', background: viewMode === 'list' ? 'white' : 'transparent', borderRadius: '8px', color: viewMode === 'list' ? 'var(--primary)' : '#94a3b8', cursor: 'pointer', display:'flex', boxShadow: viewMode==='list'?'0 2px 5px rgba(0,0,0,0.05)':'' }}><LayoutList size={18}/></button>
             </div>
-            <button onClick={() => setShowModal(true)} className="btn-primary" style={{ width: 'auto', padding: '12px 24px', borderRadius: '50px' }}><Plus size={18} /> Nuevo Pasajero</button>
+            <button onClick={() => { setForm(formInicial); setShowModal(true); }} className="btn-primary" style={{ width: 'auto', padding: '12px 24px', borderRadius: '50px' }}><Plus size={18} /> Nuevo Pasajero</button>
         </div>
       </div>
 
@@ -143,7 +169,7 @@ export default function AdminPasajeros() {
             <div 
               key={p.id} 
               className="dashboard-card" 
-              onClick={() => setShowDetail(p)} 
+              onClick={() => handleEditar(p)} // AHORA ABRE EDICIÓN
               style={{ 
                   padding: '20px', cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s', height: 'auto',
                   display: 'flex', flexDirection: viewMode === 'list' ? 'row' : 'column', alignItems: viewMode === 'list' ? 'center' : 'stretch', gap: viewMode === 'list' ? '20px' : '0'
@@ -193,7 +219,7 @@ export default function AdminPasajeros() {
                       <Building size={12} /> {p.nombreCliente}
                     </div>
                  )}
-                 {/* LINK VISIBLE - Punto 2 */}
+                 {/* LINK VISIBLE */}
                  {p.token && (
                       <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px dashed #cbd5e1', display:'flex', alignItems:'center', gap:'10px', maxWidth: viewMode==='list'?'200px':'100%' }} onClick={(e)=>e.stopPropagation()}>
                           <div style={{flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:'0.7rem', color:'#64748b'}}>{getInviteUrl(p.token)}</div>
@@ -229,35 +255,20 @@ export default function AdminPasajeros() {
         </div>
       )}
 
-      {/* MODAL DETALLE (Existente) */}
-      {showDetail && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-             <div style={{ padding: '24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0 }}>
-                <div><h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-main)', fontWeight: '800' }}>{showDetail.nombre} {showDetail.apellidoP}</h2><div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', color: '#64748b', fontSize: '0.9rem' }}><Building size={14} /> {showDetail.nombreCliente}</div></div>
-                <button onClick={() => setShowDetail(null)} style={{ background: 'white', border: '1px solid #e2e8f0', cursor: 'pointer', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
-             </div>
-             <div style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                <div><SectionLabel icon={<User size={16} />} title="Información Personal" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><InfoItem label="Apellido Materno" value={showDetail.apellidoM} /><InfoItem label="Fecha Nacimiento" value={showDetail.fechaNacimiento} icon={<Calendar size={14}/>} /><InfoItem label="Nacionalidad" value={getNombreNacionalidad(showDetail.nacionalidad)} icon={<Flag size={14}/>} /></div></div>
-                {(showDetail.pasaporte || showDetail.visa) && (<div><SectionLabel icon={<FileText size={16} />} title="Documentación" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><InfoItem label="Pasaporte" value={showDetail.pasaporte} isCode /><InfoItem label="Visa" value={showDetail.visa} isCode /></div></div>)}
-                {(showDetail.calle || showDetail.ciudad || showDetail.pais) && (<div><SectionLabel icon={<MapPin size={16} />} title="Dirección" /><div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', fontSize: '0.95rem', lineHeight: '1.6', color: '#334155' }}>{showDetail.calle} {showDetail.numExt} {showDetail.numInt ? `Int ${showDetail.numInt}` : ''} <br/>{showDetail.colonia} <br/>{showDetail.ciudad}, {getNombrePais(showDetail.pais)} {showDetail.cp ? `- CP ${showDetail.cp}` : ''}</div></div>)}
-                <div><SectionLabel icon={<Phone size={16} />} title="Contacto" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><InfoItem label="Teléfono" value={`${showDetail.lada ? `(${showDetail.lada}) ` : ''}${showDetail.telefono}`} /><InfoItem label="Correo" value={showDetail.correo} icon={<Mail size={14}/>} /></div></div>
-             </div>
-             <div style={{ padding: '20px', borderTop: '1px solid #e2e8f0', textAlign: 'right', background: '#f8fafc', borderRadius: '0 0 24px 24px' }}><button onClick={() => setShowDetail(null)} className="btn-primary" style={{ width: 'auto', display: 'inline-flex', padding: '10px 24px', fontSize: '0.9rem' }}>Cerrar Ficha</button></div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CREAR PASAJERO */}
+      {/* MODAL CREAR/EDITAR PASAJERO */}
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', overflow:'visible' }}>
-            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-main)', fontWeight: '800' }}>Nuevo Pasajero</h2><button onClick={() => setShowModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><X size={18} /></button></div>
+            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-main)', fontWeight: '800' }}>{form.id ? 'Editar Pasajero' : 'Nuevo Pasajero'}</h2>
+                <button onClick={() => setShowModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><X size={18} /></button>
+            </div>
             <div style={{ padding: '30px' }}>
               <form onSubmit={handleGuardar} style={{ display: 'grid', gap: '20px' }}>
+                
+                {/* 1. SELECCIÓN DE CLIENTE (OBLIGATORIO) */}
                 <div style={{ background: '#eff6ff', padding: '15px', borderRadius: '12px', border: '1px dashed #60a5fa' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px', fontWeight: '800', fontSize: '0.9rem', color: 'var(--primary-dark)' }}><Building size={16}/> Cliente (Empresa) *</label>
-                    {/* IMPLEMENTACIÓN SEARCHABLE SELECT: Buscar empresa */}
                     <SearchableSelect 
                         options={clientes}
                         value={form.idCliente}
@@ -266,18 +277,30 @@ export default function AdminPasajeros() {
                         required
                     />
                 </div>
+
+                {/* 2. VINCULACIÓN A USUARIO EXISTENTE (NUEVO) */}
+                <div style={{ background: '#f0fdf4', padding: '15px', borderRadius: '12px', border: '1px dashed #4ade80' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px', fontWeight: '800', fontSize: '0.9rem', color: '#15803d' }}><UserCheck size={16}/> Vincular a Usuario Web (Opcional)</label>
+                    <SearchableSelect 
+                        options={[{id: '', nombre: '-- Sin vincular (Solo registro) --'}, ...usuariosLibres]}
+                        value={form.idUsuario}
+                        onChange={(val) => setForm({...form, idUsuario: val})}
+                        placeholder="Buscar Usuario Login..."
+                    />
+                    <p style={{fontSize:'0.75rem', color:'#15803d', margin:'5px 0 0'}}>* Si seleccionas un usuario, este pasajero aparecerá en su cuenta automáticamente.</p>
+                </div>
                 
                 <SectionTitle icon={<User size={16}/>} title="Datos Personales" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><Label>Nombre(s) *</Label><input required type="text" value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} style={inputStyle} /></div><div><Label>Apellido Paterno *</Label><input required type="text" value={form.apellidoP} onChange={e => setForm({...form, apellidoP: e.target.value})} style={inputStyle} /></div><div><Label>Apellido Materno</Label><input type="text" value={form.apellidoM} onChange={e => setForm({...form, apellidoM: e.target.value})} style={inputStyle} /></div><div><Label>Fecha Nacimiento</Label><input type="date" value={form.fechaNacimiento} onChange={e => setForm({...form, fechaNacimiento: e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><Label>Nacionalidad</Label><select value={form.nacionalidad} onChange={e => setForm({...form, nacionalidad: e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{nacionalidades.map((n, idx) => <option key={idx} value={n.id}>{n.nombre}</option>)}</select></div></div>
                 <SectionTitle icon={<FileText size={16}/>} title="Documentos de Viaje" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><Label>ID Pasaporte</Label><div style={{ position: 'relative' }}><CreditCard size={16} style={{ position: 'absolute', top: '12px', left: '10px', color: '#94a3b8' }} /><input type="text" value={form.pasaporte} onChange={e => setForm({...form, pasaporte: e.target.value})} style={{...inputStyle, paddingLeft: '35px'}} placeholder="Número de Pasaporte" /></div></div><div><Label>ID Visa</Label><div style={{ position: 'relative' }}><CreditCard size={16} style={{ position: 'absolute', top: '12px', left: '10px', color: '#94a3b8' }} /><input type="text" value={form.visa} onChange={e => setForm({...form, visa: e.target.value})} style={{...inputStyle, paddingLeft: '35px'}} placeholder="Número de Visa" /></div></div></div>
                 <SectionTitle icon={<MapPin size={16}/>} title="Dirección" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><Label>País</Label><select value={form.pais} onChange={e => setForm({...form, pais: e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{paises.map((p, idx) => (<option key={idx} value={p.id}>{p.nombre}</option>))}</select></div><div><Label>CP</Label><input type="text" value={form.cp} onChange={e => setForm({...form, cp: e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><Label>Calle</Label><input type="text" value={form.calle} onChange={e => setForm({...form, calle: e.target.value})} style={inputStyle} /></div><div><Label>Num. Ext</Label><input type="text" value={form.numExt} onChange={e => setForm({...form, numExt: e.target.value})} style={inputStyle} /></div><div><Label>Num. Int</Label><input type="text" value={form.numInt} onChange={e => setForm({...form, numInt: e.target.value})} style={inputStyle} /></div><div><Label>Colonia</Label><input type="text" value={form.colonia} onChange={e => setForm({...form, colonia: e.target.value})} style={inputStyle} /></div><div><Label>Ciudad</Label><input type="text" value={form.ciudad} onChange={e => setForm({...form, ciudad: e.target.value})} style={inputStyle} /></div></div>
                 <SectionTitle icon={<Phone size={16}/>} title="Contacto" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '15px' }}><div><Label>Lada</Label><input type="text" placeholder="Ej. 52" value={form.lada} onChange={e => setForm({...form, lada: e.target.value})} style={inputStyle} /></div><div><Label>Teléfono</Label><input type="tel" value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><Label>Correo</Label><input type="email" value={form.correo} onChange={e => setForm({...form, correo: e.target.value})} style={inputStyle} /></div></div>
-                <div style={{ marginTop: '20px' }}><button type="submit" className="btn-primary" disabled={procesando}>{procesando ? 'Guardando...' : 'Guardar Pasajero Completo'}</button></div>
+                <div style={{ marginTop: '20px' }}><button type="submit" className="btn-primary" disabled={procesando}>{procesando ? 'Guardando...' : 'Guardar Pasajero'}</button></div>
               </form>
             </div>
           </div>
         </div>
       )}
-      {showSuccess && (<div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}><div style={{ background: 'white', padding: '30px', borderRadius: '20px', textAlign: 'center', animation: 'popIn 0.3s' }}><h3 style={{ margin: 0, color: '#16a34a' }}>¡Pasajero Agregado!</h3></div></div>)}
+      {showSuccess && (<div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}><div style={{ background: 'white', padding: '30px', borderRadius: '20px', textAlign: 'center', animation: 'popIn 0.3s' }}><h3 style={{ margin: 0, color: '#16a34a' }}>¡Pasajero Guardado!</h3></div></div>)}
     </div>
   );
 }
@@ -285,12 +308,5 @@ export default function AdminPasajeros() {
 const SectionTitle = ({ icon, title }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '5px', marginTop: '10px' }}><div style={{ color: 'var(--primary)' }}>{icon}</div><span style={{ fontWeight: '800', fontSize: '0.9rem', color: 'var(--text-main)', textTransform: 'uppercase' }}>{title}</span></div>
 );
-const SectionLabel = ({ icon, title }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}><div style={{ color: 'var(--primary-light)' }}>{icon}</div><span style={{ fontWeight: '800', fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</span></div>
-);
-const InfoItem = ({ label, value, icon, isCode }) => {
-  if (!value) return null;
-  return (<div><div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#94a3b8', marginBottom: '4px' }}>{label}</div><div style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: isCode ? 'monospace' : 'inherit', background: isCode ? '#f1f5f9' : 'transparent', padding: isCode ? '4px 8px' : '0', borderRadius: isCode ? '6px' : '0', width: 'fit-content' }}>{icon && <span style={{color: 'var(--primary)'}}>{icon}</span>}{value}</div></div>);
-};
 const Label = ({ children }) => (<label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '700', color: '#64748b' }}>{children}</label>);
 const inputStyle = { width: '100%', padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', boxSizing: 'border-box', fontSize: '0.95rem' };
