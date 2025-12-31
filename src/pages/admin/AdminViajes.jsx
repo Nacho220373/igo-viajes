@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { enviarPeticion } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-// IMPORTAMOS EL NUEVO COMPONENTE
 import SearchableSelect from '../../components/SearchableSelect';
-import { Plus, Search, Map, Calendar, ArrowLeft, X, LayoutGrid, LayoutList } from 'lucide-react';
+import { Plus, Search, Map, Calendar, ArrowLeft, X, LayoutGrid, LayoutList, Users, CheckSquare } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function AdminViajes() {
@@ -21,8 +20,10 @@ export default function AdminViajes() {
   const [procesando, setProcesando] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); 
 
-  const formInicial = { nombre: '', idCliente: '', tipo: '1', fechaInicio: '', fechaFin: '' };
+  // Formulario (ahora soporta multi-cliente)
+  const formInicial = { nombre: '', tipo: '1', fechaInicio: '', fechaFin: '' };
   const [form, setForm] = useState(formInicial);
+  const [selectedClientes, setSelectedClientes] = useState([]); // Array {id, nombre}
 
   useEffect(() => {
     cargarDatos();
@@ -46,16 +47,43 @@ export default function AdminViajes() {
 
   const handleGuardar = async (e) => {
     e.preventDefault();
-    if (!form.idCliente) return alert("Selecciona un Cliente");
+    if (selectedClientes.length === 0) return alert("Selecciona al menos un Cliente titular");
+    
     setProcesando(true);
-    const respuesta = await enviarPeticion({ accion: 'agregarViaje', viaje: form });
+    
+    // Enviamos array de IDs de clientes
+    const payload = {
+        ...form,
+        idCliente: selectedClientes.map(c => c.id)
+    };
+
+    const respuesta = await enviarPeticion({ accion: 'agregarViaje', viaje: payload });
+    
     if (respuesta.exito) {
-      setShowModal(false); setForm(formInicial); setShowSuccess(true);
+      setShowModal(false); 
+      setForm(formInicial); 
+      setSelectedClientes([]);
+      setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
+      
       const refresh = await enviarPeticion({ accion: 'obtenerViajes', idUsuario: user.id, rol: user.rol });
       if (refresh.exito) setViajes(refresh.datos);
-    } else { alert("Error: " + respuesta.error); }
+    } else { 
+      alert("Error: " + respuesta.error); 
+    }
     setProcesando(false);
+  };
+
+  // Función para agregar cliente a la lista
+  const addCliente = (id) => {
+      const cliente = clientes.find(c => c.id == id);
+      if (cliente && !selectedClientes.some(sc => sc.id == id)) {
+          setSelectedClientes([...selectedClientes, { id: cliente.id, nombre: cliente.nombre }]);
+      }
+  };
+
+  const removeCliente = (id) => {
+      setSelectedClientes(selectedClientes.filter(c => c.id !== id));
   };
 
   const filtrados = viajes.filter(v => v.nombre.toLowerCase().includes(busqueda.toLowerCase()) || v.destino.toLowerCase().includes(busqueda.toLowerCase()));
@@ -127,16 +155,28 @@ export default function AdminViajes() {
               <form onSubmit={handleGuardar} style={{ display: 'grid', gap: '20px' }}>
                 <div><label style={labelStyle}>Nombre del Viaje *</label><input required type="text" placeholder="Ej. Boda en Cancún" value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} style={inputStyle} /></div>
                 
-                {/* IMPLEMENTACIÓN DE BÚSQUEDA DE CLIENTES */}
-                <div>
-                    <label style={labelStyle}>Cliente (Titular) *</label>
-                    <SearchableSelect 
-                        options={clientes}
-                        value={form.idCliente}
-                        onChange={(val) => setForm({...form, idCliente: val})}
-                        placeholder="Buscar Cliente..."
-                        required
-                    />
+                {/* MULTI-CLIENTE SELECTOR */}
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                    <label style={{...labelStyle, color:'var(--primary)'}}><Users size={14} style={{verticalAlign:'middle'}}/> Clientes Asociados (Pago compartido)</label>
+                    
+                    <div style={{marginBottom:'10px'}}>
+                        <SearchableSelect 
+                            options={clientes.filter(c => !selectedClientes.some(sc => sc.id === c.id))}
+                            value=""
+                            onChange={addCliente}
+                            placeholder="+ Agregar Cliente..."
+                        />
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {selectedClientes.length === 0 && <span style={{fontSize:'0.8rem', color:'#94a3b8'}}>Ningún cliente seleccionado</span>}
+                        {selectedClientes.map(c => (
+                            <div key={c.id} style={{ background: 'white', border: '1px solid #e2e8f0', padding: '4px 10px', borderRadius: '20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#334155', fontWeight:'600' }}>
+                                {c.nombre} 
+                                <X size={14} style={{cursor:'pointer', color:'#ef4444'}} onClick={() => removeCliente(c.id)} />
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={labelStyle}>Fecha Inicio</label><input type="date" value={form.fechaInicio} onChange={e => setForm({...form, fechaInicio: e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Fecha Fin</label><input type="date" value={form.fechaFin} onChange={e => setForm({...form, fechaFin: e.target.value})} style={inputStyle} /></div></div>

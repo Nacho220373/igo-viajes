@@ -271,7 +271,6 @@ p {
 
 /* === ESTILOS DE IMPRESIÓN === */
 @media print {
-  /* 1. Márgenes de hoja: Pequeños pero suficientes para evitar cortes */
   @page {
     size: auto;
     margin: 5mm 10mm; 
@@ -336,5 +335,67 @@ p {
 
   .no-print {
     display: none !important;
+  }
+}
+
+/* === UTILIDADES RESPONSIVAS (SoC: Layout Logic) === */
+
+/* 1. Grillas Dinámicas (Soluciona el problema de fechas encimadas) */
+.grid-responsive-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+/* 2. Header Flexible (Evita que títulos y botones choquen) */
+.header-flexible {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+/* 3. Menú de Acciones Inteligente (Soluciona el menú cortado) */
+.dropdown-menu-responsive {
+  position: absolute;
+  top: 120%;
+  right: 0;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);
+  min-width: 240px;
+  z-index: 100;
+  overflow: hidden;
+  padding: 8px;
+}
+
+/* === REGLAS PARA MÓVILES (Max 768px) === */
+@media (max-width: 768px) {
+  /* Forzar 1 columna en selectores de fecha y formularios */
+  .grid-responsive-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Ajustar menú de acciones si está muy al borde */
+  .action-container {
+    position: static !important; /* Libera el posicionamiento relativo */
+  }
+  
+  .dropdown-menu-responsive {
+    /* En móvil, el menú ocupa casi todo el ancho y se centra */
+    right: 50% !important;
+    transform: translateX(50%);
+    width: 90vw;
+    max-width: 300px;
+    min-width: unset;
+  }
+
+  /* Ajustes de tipografía en tablas para que no rompan el layout */
+  table th, table td {
+    padding: 8px 4px !important;
+    font-size: 0.75rem !important;
   }
 }

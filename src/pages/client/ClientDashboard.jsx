@@ -820,7 +820,8 @@ export default function ClientDashboard({ user }) {
                     {/* FILTRO DE FECHAS */}
                     <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:'15px' }}>
                         <label style={{...labelStyle, color:'var(--primary)'}}>Filtrar por Fechas (Opcional)</label>
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                        {/* AQUÍ ESTÁ EL CAMBIO RESPONSIVO: CLASE UTILITARIA */}
+                        <div className="grid-responsive-2">
                             <div>
                                 <label style={{fontSize:'0.75rem', color:'#64748b'}}>Desde</label>
                                 <input type="date" style={inputStyle} value={filtroReporte.fechaInicio} onChange={e=>setFiltroReporte({...filtroReporte, fechaInicio:e.target.value})} />

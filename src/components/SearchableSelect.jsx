@@ -175,14 +175,16 @@ const dropdownStyle = {
   position: 'absolute',
   top: '105%',
   left: 0,
-  right: 0,
+  right: 0, // Esto asegura que respete el ancho del padre
   background: 'white',
   border: '1px solid #e2e8f0',
   borderRadius: '12px',
   boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)',
   zIndex: 1000,
   overflow: 'hidden',
-  animation: 'fadeIn 0.1s ease-out'
+  animation: 'fadeIn 0.1s ease-out',
+  width: '100%', // Aseguramos que no sea más ancho que el input
+  boxSizing: 'border-box' // Importante para que el padding no rompa el ancho
 };
 
 const searchBoxStyle = {
@@ -192,5 +194,6 @@ const searchBoxStyle = {
   border: '1px solid #e2e8f0',
   fontSize: '0.9rem',
   outline: 'none',
-  background: '#f8fafc'
+  background: '#f8fafc',
+  boxSizing: 'border-box'
 };

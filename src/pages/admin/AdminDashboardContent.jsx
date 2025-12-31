@@ -5,7 +5,6 @@ import { enviarPeticion } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import SearchableSelect from '../../components/SearchableSelect';
-// AÑADIDO: Importamos iconos para las alertas (AlertCircle, CheckCircle, AlertTriangle)
 import { 
   LogOut, Map as MapIcon, User as UserIcon, Calendar, ArrowRightCircle, LayoutGrid, List, Search, X, 
   Users, UserCheck, Plane, Briefcase, TrendingUp, TrendingDown, Wallet, Bell, DollarSign, Clock, 
@@ -377,13 +376,14 @@ export default function AdminDashboardContent() {
   return (
       <div className="dashboard-container" style={{ paddingTop: '80px' }}>
           {/* HEADER PRINCIPAL */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
+          <div className="header-flexible">
               <div><h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--primary-dark)', fontWeight: '800' }}>Panel de Control</h1><p style={{ margin: '5px 0 0', color: '#64748b' }}>Vista Administrativa</p></div>
               <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                  <div style={{ position: 'relative' }} ref={addMenuRef}>
+                  {/* CONTENEDOR DE ACCIONES (RESPONSIVO) */}
+                  <div className="action-container" style={{ position: 'relative' }} ref={addMenuRef}>
                       <button onClick={() => setShowAddMenu(!showAddMenu)} style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '50px', cursor: 'pointer', fontWeight: '700', display:'flex', gap:'8px', alignItems:'center', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.3)' }}><Plus size={18}/> Acciones {showAddMenu ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>
                       {showAddMenu && (
-                          <div style={{ position: 'absolute', top: '120%', right: 0, background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', minWidth: '240px', zIndex: 100, overflow: 'hidden', padding: '8px' }}>
+                          <div className="dropdown-menu-responsive">
                               <div onClick={() => handleMenuOption('/admin/viajes')} style={menuItemStyle}><Plane size={18} color="var(--primary)"/> Nuevo Viaje</div>
                               <div onClick={() => handleMenuOption('/admin/clientes')} style={menuItemStyle}><Users size={18} color="var(--primary)"/> Nuevo Cliente</div>
                               <div onClick={() => handleMenuOption('/admin/pasajeros')} style={menuItemStyle}><UserCheck size={18} color="var(--primary)"/> Nuevo Pasajero</div>
@@ -462,7 +462,8 @@ export default function AdminDashboardContent() {
                           )}
                           <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:'15px' }}>
                               <label style={{...labelStyle, color:'var(--primary)'}}>Filtrar por Fechas (Opcional)</label>
-                              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                              {/* AQUÍ ESTÁ EL CAMBIO RESPONSIVO: CLASE UTILITARIA */}
+                              <div className="grid-responsive-2">
                                   <div><label style={{fontSize:'0.75rem', color:'#64748b'}}>Desde</label><input type="date" style={inputStyle} value={edoCtaFiltro.fechaInicio} onChange={e=>setEdoCtaFiltro({...edoCtaFiltro, fechaInicio:e.target.value})} /></div>
                                   <div><label style={{fontSize:'0.75rem', color:'#64748b'}}>Hasta</label><input type="date" style={inputStyle} value={edoCtaFiltro.fechaFin} onChange={e=>setEdoCtaFiltro({...edoCtaFiltro, fechaFin:e.target.value})} /></div>
                               </div>
@@ -517,7 +518,7 @@ export default function AdminDashboardContent() {
                                   <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='2'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='2'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="2" checked={formTransaccion.tipo=='2'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Egreso</label>
                                   <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='3'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='3'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="3" checked={formTransaccion.tipo=='3'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Abono</label>
                               </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                              <div className="grid-responsive-2">
                                   <div><label style={labelStyle}>Monto</label><input required type="number" step="0.01" value={formTransaccion.monto} onChange={e=>setFormTransaccion({...formTransaccion, monto:e.target.value})} style={inputStyle} placeholder="0.00" /></div>
                                   <div><label style={labelStyle}>Moneda</label><select value={formTransaccion.moneda} onChange={e=>setFormTransaccion({...formTransaccion, moneda:e.target.value})} style={inputStyle}>{listasFinancieras.monedas.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
                               </div>
