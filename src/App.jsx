@@ -12,6 +12,7 @@ import AdminViajes from './pages/admin/AdminViajes';
 import AdminDetalleViaje from './pages/admin/AdminDetalleViaje';
 import AdminProveedores from './pages/admin/AdminProveedores';
 import AdminGuard from './components/AdminGuard';
+import MobileWarning from './components/MobileWarning'; // <--- IMPORTAR
 
 const RutaProtegida = ({ children }) => {
   const { user, loading } = useAuth();
@@ -24,11 +25,13 @@ function App() {
   return (
     <ConfigProvider>
       <AuthProvider>
+        {/* COMPONENTE DE AVISO MÓVIL (Global) */}
+        <MobileWarning />
+        
         <BrowserRouter>
           <Routes>
             {/* Rutas Públicas */}
             <Route path="/login" element={<Login />} />
-            {/* <Route path="/register" element={<Register />} />  <--- ELIMINAR ESTA RUTA */}
             <Route path="/invite" element={<Invite />} />
             
             {/* Rutas Privadas Generales */}
