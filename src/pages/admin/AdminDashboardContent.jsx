@@ -346,7 +346,15 @@ export default function AdminDashboardContent() {
     const element = document.getElementById('print-area-admin');
     if (!element) return;
     setGenerandoPDF(true);
-    const opt = { margin: [5, 5], filename: `EdoCta.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } };
+    // Configuración para respetar los saltos de página CSS
+    const opt = { 
+        margin: [5, 5], 
+        filename: `EdoCta.pdf`, 
+        image: { type: 'jpeg', quality: 0.98 }, 
+        html2canvas: { scale: 2 }, 
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['css', 'legacy'] } // ESTO ES CLAVE
+    };
     html2pdf().set(opt).from(element).save().then(() => setGenerandoPDF(false));
   };
 
@@ -494,7 +502,12 @@ export default function AdminDashboardContent() {
                         <tbody>
                             {edoCtaData.transacciones.map((t,i)=>{
                                 const esVerde=(t.tipoId==1||t.tipoId==3);
-                                return (<tr key={i}><td style={{padding:'8px',borderBottom:'1px solid #eee'}}>{t.fecha}</td>{edoCtaData.esGeneral && <td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600'}}>{t.nombreCliente}</td>}<td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600', fontSize:'0.75rem', maxWidth:'150px'}}>{t.nombreViaje}</td><td style={{padding:'8px',borderBottom:'1px solid #eee', fontSize:'0.75rem', maxWidth:'150px'}}>{t.infoServicio}</td><td style={{padding:'8px',borderBottom:'1px solid #eee', fontSize:'0.75rem'}}>{t.nombrePasajero}</td><td style={{padding:'8px',borderBottom:'1px solid #eee'}}>{t.concepto}</td><td style={{padding:'8px',textAlign:'center',borderBottom:'1px solid #eee'}}><span style={{background:esVerde?'#ecfdf5':'#fef2f2', color:esVerde?'#10b981':'#ef4444', padding:'2px 8px', borderRadius:'10px', fontSize:'0.75rem', fontWeight:'bold'}}>{esVerde?'ABONO':'CARGO'}</span></td><td style={{padding:'8px',textAlign:'right',borderBottom:'1px solid #eee'}}>${t.monto}</td></tr>)
+                                return (
+                                    /* AQUÍ LA PROTECCIÓN INDIVIDUAL POR FILA */
+                                    <tr key={i} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <td style={{padding:'8px',borderBottom:'1px solid #eee'}}>{t.fecha}</td>{edoCtaData.esGeneral && <td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600'}}>{t.nombreCliente}</td>}<td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600', fontSize:'0.75rem', maxWidth:'150px'}}>{t.nombreViaje}</td><td style={{padding:'8px',borderBottom:'1px solid #eee', fontSize:'0.75rem', maxWidth:'150px'}}>{t.infoServicio}</td><td style={{padding:'8px',borderBottom:'1px solid #eee', fontSize:'0.75rem'}}>{t.nombrePasajero}</td><td style={{padding:'8px',borderBottom:'1px solid #eee'}}>{t.concepto}</td><td style={{padding:'8px',textAlign:'center',borderBottom:'1px solid #eee'}}><span style={{background:esVerde?'#ecfdf5':'#fef2f2', color:esVerde?'#10b981':'#ef4444', padding:'2px 8px', borderRadius:'10px', fontSize:'0.75rem', fontWeight:'bold'}}>{esVerde?'ABONO':'CARGO'}</span></td><td style={{padding:'8px',textAlign:'right',borderBottom:'1px solid #eee'}}>${t.monto}</td>
+                                    </tr>
+                                )
                             })}
                         </tbody>
                     </table>
@@ -617,7 +630,7 @@ export default function AdminDashboardContent() {
                     {customAlert.type === 'warning' ? <AlertTriangle size={32} /> : (customAlert.type === 'success' ? <CheckCircle size={32} /> : <AlertCircle size={32} />)}
                 </div>
                 <h3 style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontSize: '1.4rem', fontWeight: '800' }}>{customAlert.title}</h3>
-                <p style={{ margin: '0 0 25px 0', color: '#64748b', fontSize: '1rem', lineHeight: '1.5' }}>{customAlert.msg}</p>
+                <p style={{ margin: '0 0 25px', color: '#64748b', fontSize: '1rem', lineHeight: '1.5' }}>{customAlert.msg}</p>
                 <button onClick={closeAlert} className="btn-primary" style={{ width: '100%', background: customAlert.type === 'warning' ? '#f59e0b' : (customAlert.type === 'success' ? '#10b981' : '#ef4444'), border: 'none' }}>Entendido</button>
               </div>
             </div>

@@ -438,7 +438,8 @@ export default function ClientDashboard({ user }) {
         filename: `EdoCta_${new Date().toISOString().slice(0,10)}.pdf`, 
         image: { type: 'jpeg', quality: 0.98 }, 
         html2canvas: { scale: 2 }, 
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } // Landscape para que quepan las columnas
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }, // Landscape para que quepan las columnas
+        pagebreak: { mode: ['css', 'legacy'] } // ESTO ES CLAVE
     };
     
     html2pdf().set(opt).from(element).save().then(() => setGenerandoPDF(false));
@@ -456,7 +457,7 @@ export default function ClientDashboard({ user }) {
   return (
     <div className="dashboard-container">
       {/* HEADER */}
-      <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'end', flexWrap: 'wrap', gap: '15px' }}>
+      <div className="header-flexible">
         <div>
             <h1 style={{ fontSize: '2rem', color: 'var(--primary-dark)', fontWeight: '800', margin: 0 }}>Hola, {user.nombre.split(' ')[0]}</h1>
             <p style={{ color: '#64748b', margin: '5px 0 0' }}>Bienvenido a tu portal de viajes.</p>
@@ -501,7 +502,10 @@ export default function ClientDashboard({ user }) {
       {/* CONTENIDO TABS */}
       {activeTab === 'resumen' && (
         <div className="fade-in">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
+          {/* AQUÍ ESTÁ EL CAMBIO PRINCIPAL: .dashboard-main-grid */}
+          <div className="dashboard-main-grid">
+            
+            {/* COLUMNA IZQUIERDA: ESTADO DE CUENTA */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <h3 style={{ margin: '0 0 10px 0', color: '#64748b', fontSize: '1rem', textTransform: 'uppercase' }}>Estado de Cuenta</h3>
                 <div className="dashboard-card" style={{ padding: '24px', background: 'var(--primary-gradient)', color: 'white', position: 'relative', overflow: 'hidden' }}>
@@ -512,11 +516,14 @@ export default function ClientDashboard({ user }) {
                     </div>
                     <Wallet size={120} style={{ position: 'absolute', right: -20, bottom: -30, opacity: 0.1, transform: 'rotate(-15deg)' }} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                {/* CAMBIO 2: .grid-responsive-2 para las tarjetas de resumen */}
+                <div className="grid-responsive-2">
                     <div className="dashboard-card" style={{ padding: '20px', borderLeft: '4px solid #10b981' }}><div style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: '700', marginBottom: '5px' }}>TOTAL PAGADO</div><div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--text-main)' }}>${data.finanzas.pagado.toLocaleString()}</div></div>
                     <div className="dashboard-card" style={{ padding: '20px', borderLeft: '4px solid #f59e0b' }}><div style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: '700', marginBottom: '5px' }}>COSTO SERVICIOS</div><div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--text-main)' }}>${data.finanzas.costoTotal.toLocaleString()}</div></div>
                 </div>
             </div>
+
+            {/* COLUMNA DERECHA: VIAJES EN CURSO */}
             <div>
                 <h3 style={{ margin: '0 0 15px 0', color: '#64748b', fontSize: '1rem', textTransform: 'uppercase' }}>Viajes en Curso</h3>
                 {data.viajesActivos.length === 0 ? <div style={emptyStateStyle}>No tienes viajes activos.</div> : (
@@ -613,7 +620,7 @@ export default function ClientDashboard({ user }) {
              <div style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 {isEditing ? (
                     <div style={{display:'grid', gap:'15px'}}>
-                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
+                        <div className="grid-responsive-2">
                             <div><label style={labelStyle}>Nombre(s)</label><input style={inputStyle} value={editForm.nombre || ''} onChange={e=>setEditForm({...editForm, nombre:e.target.value})}/></div>
                             <div><label style={labelStyle}>Apellido Paterno</label><input style={inputStyle} value={editForm.apellidoP || ''} onChange={e=>setEditForm({...editForm, apellidoP:e.target.value})}/></div>
                             <div style={{gridColumn:'1 / -1'}}><label style={labelStyle}>Correo</label><input style={inputStyle} value={editForm.correo || ''} onChange={e=>setEditForm({...editForm, correo:e.target.value})}/></div>
@@ -624,8 +631,8 @@ export default function ClientDashboard({ user }) {
                 ) : (
                     <>
                         <div>
-                        <SectionLabel icon={<User size={16} />} title="Información Personal" />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <SectionLabel icon={<User size={16}/>} title="Información Personal" />
+                        <div className="grid-responsive-2">
                             <InfoItem label="Apellido Materno" value={selectedPasajero.apellidoM} />
                             <InfoItem label="Fecha Nacimiento" value={formatoFecha(selectedPasajero.fechaNacimiento)} icon={<Calendar size={14}/>} />
                             <InfoItem label="Nacionalidad" value={getNombreNacionalidad(selectedPasajero.nacionalidad)} icon={<Flag size={14}/>} />
@@ -634,7 +641,7 @@ export default function ClientDashboard({ user }) {
                         {(selectedPasajero.pasaporte || selectedPasajero.visa) && (
                         <div>
                             <SectionLabel icon={<FileText size={16} />} title="Documentación" />
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                            <div className="grid-responsive-2">
                                 <InfoItem label="Pasaporte" value={selectedPasajero.pasaporte} isCode icon={<CreditCard size={14}/>} />
                                 <InfoItem label="Visa" value={selectedPasajero.visa} isCode icon={<CreditCard size={14}/>} />
                             </div>
@@ -650,7 +657,7 @@ export default function ClientDashboard({ user }) {
                         )}
                         <div>
                         <SectionLabel icon={<Phone size={16} />} title="Contacto" />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <div className="grid-responsive-2">
                             <InfoItem label="Teléfono" value={`${selectedPasajero.lada ? `(${selectedPasajero.lada}) ` : ''}${selectedPasajero.telefono}`} />
                             <InfoItem label="Correo" value={selectedPasajero.correo} icon={<Mail size={14}/>} />
                         </div>
@@ -697,7 +704,7 @@ export default function ClientDashboard({ user }) {
                 <div style={{padding:'20px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between'}}><h3 style={{margin:0}}>Nuevo Pasajero</h3><button onClick={()=>setShowAddPasajero(false)} style={closeBtnStyle}><X size={18}/></button></div>
                 <div style={{padding:'25px'}}>
                     <form onSubmit={guardarNuevoPasajero} style={{display:'grid', gap:'15px'}}>
-                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
+                        <div className="grid-responsive-2">
                             <div><label style={labelStyle}>Nombre *</label><input required style={inputStyle} value={newPasajeroForm.nombre} onChange={e=>setNewPasajeroForm({...newPasajeroForm, nombre:e.target.value})}/></div>
                             <div><label style={labelStyle}>Apellido Paterno *</label><input required style={inputStyle} value={newPasajeroForm.apellidoP} onChange={e=>setNewPasajeroForm({...newPasajeroForm, apellidoP:e.target.value})}/></div>
                         </div>
@@ -728,14 +735,14 @@ export default function ClientDashboard({ user }) {
                         </div>
                         <div>
                             <SectionLabel icon={<FileText size={16}/>} title="Datos Fiscales" style={{marginBottom:'10px'}}/>
-                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
+                            <div className="grid-responsive-2">
                                 <div><label style={labelStyle}>Razón Social</label><input style={inputStyle} value={profileForm.razonSocial || ''} onChange={e=>setProfileForm({...profileForm, razonSocial:e.target.value})}/></div>
                                 <div><label style={labelStyle}>RFC</label><input style={inputStyle} value={profileForm.rfc || ''} onChange={e=>setProfileForm({...profileForm, rfc:e.target.value})}/></div>
                             </div>
                         </div>
                         <div>
                             <SectionLabel icon={<Phone size={16}/>} title="Contacto" style={{marginBottom:'10px'}}/>
-                            <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'15px'}}>
+                            <div className="grid-responsive-2">
                                 <div><label style={labelStyle}>Lada</label><input style={inputStyle} value={profileForm.lada || ''} onChange={e=>setProfileForm({...profileForm, lada:e.target.value})}/></div>
                                 <div><label style={labelStyle}>Teléfono</label><input style={inputStyle} value={profileForm.telefono || ''} onChange={e=>setProfileForm({...profileForm, telefono:e.target.value})}/></div>
                                 <div style={{gridColumn:'1 / -1'}}><label style={labelStyle}>Correo</label><input style={inputStyle} value={profileForm.correo || ''} onChange={e=>setProfileForm({...profileForm, correo:e.target.value})}/></div>
@@ -743,7 +750,7 @@ export default function ClientDashboard({ user }) {
                         </div>
                         <div>
                             <SectionLabel icon={<MapPin size={16}/>} title="Dirección" style={{marginBottom:'10px'}}/>
-                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
+                            <div className="grid-responsive-2">
                                 <div><label style={labelStyle}>País</label>
                                     <select style={inputStyle} value={profileForm.pais || ''} onChange={e=>setProfileForm({...profileForm, pais:e.target.value})}>
                                         <option value="">Seleccionar...</option>
@@ -893,7 +900,8 @@ export default function ClientDashboard({ user }) {
                                 const esVerde = (t.tipoId == 1 || t.tipoId == 3);
                                 const tipoEtiqueta = t.tipoId == 1 ? 'PAGO' : (t.tipoId == 3 ? 'ABONO CTA' : 'CARGO');
                                 return (
-                                    <tr key={i} style={{pageBreakInside: 'avoid'}}>
+                                    /* AQUÍ LA PROTECCIÓN INDIVIDUAL POR FILA */
+                                    <tr key={i} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                         <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{t.fecha}</td>
                                         {reporteData.esGeneral && <td style={{padding:'8px',borderBottom:'1px solid #eee', fontWeight:'600'}}>{t.nombreCliente}</td>}
                                         <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', fontWeight:'600', fontSize:'0.75rem', maxWidth:'150px' }}>{t.nombreViaje}</td>

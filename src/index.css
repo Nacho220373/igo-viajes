@@ -333,21 +333,34 @@ p {
     padding: 4px !important;
   }
 
+  /* PROTECCIÓN GRANULAR CONTRA CORTES */
+  .print-area tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .no-print {
     display: none !important;
   }
 }
 
-/* === UTILIDADES RESPONSIVAS (SoC: Layout Logic) === */
+/* === UTILIDADES RESPONSIVAS (Layout Logic) === */
 
-/* 1. Grillas Dinámicas (Soluciona el problema de fechas encimadas) */
+/* 1. Grilla Principal del Dashboard (Secciones Grandes) */
+.dashboard-main-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+}
+
+/* 2. Grillas de Contenido (Fechas, Tarjetas Finanzas, Inputs) */
 .grid-responsive-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
 }
 
-/* 2. Header Flexible (Evita que títulos y botones choquen) */
+/* 3. Header Flexible */
 .header-flexible {
   display: flex;
   justify-content: space-between;
@@ -357,7 +370,7 @@ p {
   margin-bottom: 30px;
 }
 
-/* 3. Menú de Acciones Inteligente (Soluciona el menú cortado) */
+/* 4. Dropdown Menu (Base) */
 .dropdown-menu-responsive {
   position: absolute;
   top: 120%;
@@ -374,28 +387,41 @@ p {
 
 /* === REGLAS PARA MÓVILES (Max 768px) === */
 @media (max-width: 768px) {
-  /* Forzar 1 columna en selectores de fecha y formularios */
+  
+  /* Grilla Principal: Secciones una debajo de otra con MÁS espacio */
+  .dashboard-main-grid {
+    grid-template-columns: 1fr;
+    gap: 40px; /* Aumentado para evitar solapamiento visual */
+  }
+
+  /* Contenido Interno: Forzar 1 columna */
   .grid-responsive-2 {
     grid-template-columns: 1fr !important;
   }
 
-  /* Ajustar menú de acciones si está muy al borde */
-  .action-container {
-    position: static !important; /* Libera el posicionamiento relativo */
+  /* Header: Apilar y alinear */
+  .header-flexible {
+    flex-direction: column;
+    align-items: stretch; /* Ocupar todo el ancho */
+    gap: 20px;
   }
   
-  .dropdown-menu-responsive {
-    /* En móvil, el menú ocupa casi todo el ancho y se centra */
-    right: 50% !important;
-    transform: translateX(50%);
-    width: 90vw;
-    max-width: 300px;
-    min-width: unset;
+  /* Forzar que el contenedor del botón de acciones se vaya a la derecha */
+  .header-flexible > div:last-child {
+    display: flex;
+    justify-content: flex-end; 
   }
 
-  /* Ajustes de tipografía en tablas para que no rompan el layout */
-  table th, table td {
-    padding: 8px 4px !important;
-    font-size: 0.75rem !important;
+  /* Dropdown en móvil */
+  .dropdown-menu-responsive {
+    /* Nos aseguramos que sea relativo al botón, no a la pantalla */
+    top: 100%; 
+    margin-top: 5px;
+    right: 0; /* Anclado a la derecha del botón */
+    left: auto;
+    width: 260px; /* Ancho fijo seguro */
+    min-width: unset;
+    z-index: 1000;
+    transform: none;
   }
 }
