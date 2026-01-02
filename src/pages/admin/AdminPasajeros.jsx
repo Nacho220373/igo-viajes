@@ -29,9 +29,9 @@ export default function AdminPasajeros() {
 
   const formInicial = {
     idCliente: '', nombre: '', apellidoP: '', apellidoM: '', fechaNacimiento: '', 
-    nacionalidad: '', pasaporte: '', visa: '', pais: '', ciudad: '', colonia: '', 
+    nacionalidad: '', pasaporte: '', visa: '', pais: '', estado: '', ciudad: '', colonia: '', 
     calle: '', numExt: '', numInt: '', cp: '', correo: '',
-    // CAMBIO: Estructura de teléfonos múltiples
+    // Estructura de teléfonos múltiples
     telefonos: [{ tipo: 'Móvil', lada: '52', numero: '' }],
     idUsuario: '' 
   };
@@ -116,7 +116,8 @@ export default function AdminPasajeros() {
           ...p,
           fechaNacimiento: fechaInput,
           telefonos: listaTelefonos,
-          idUsuario: p.idUsuario || ''
+          idUsuario: p.idUsuario || '',
+          estado: p.estado || '' // Asegurar cargar estado si existe
       });
       setShowModal(true);
   };
@@ -256,7 +257,7 @@ export default function AdminPasajeros() {
         </div>
       )}
 
-      {/* MODAL CREAR/EDITAR PASAJERO - CORREGIDO SCROLL */}
+      {/* MODAL CREAR/EDITAR PASAJERO */}
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
@@ -304,7 +305,7 @@ export default function AdminPasajeros() {
                 
                 <SectionTitle icon={<MapPin size={16}/>} title="Dirección" />
                 <div className="grid-responsive-2">
-                    <div><Label>País</Label><select value={form.pais} onChange={e => setForm({...form, pais: e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{paises.map((p, idx) => (<option key={idx} value={p.id}>{p.nombre}</option>))}</select></div><div><Label>CP</Label><input type="text" value={form.cp} onChange={e => setForm({...form, cp: e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><Label>Calle</Label><input type="text" value={form.calle} onChange={e => setForm({...form, calle: e.target.value})} style={inputStyle} /></div><div><Label>Num. Ext</Label><input type="text" value={form.numExt} onChange={e => setForm({...form, numExt: e.target.value})} style={inputStyle} /></div><div><Label>Num. Int</Label><input type="text" value={form.numInt} onChange={e => setForm({...form, numInt: e.target.value})} style={inputStyle} /></div><div><Label>Colonia</Label><input type="text" value={form.colonia} onChange={e => setForm({...form, colonia: e.target.value})} style={inputStyle} /></div><div><Label>Ciudad</Label><input type="text" value={form.ciudad} onChange={e => setForm({...form, ciudad: e.target.value})} style={inputStyle} /></div>
+                    <div><Label>País</Label><select value={form.pais} onChange={e => setForm({...form, pais: e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{paises.map((p, idx) => (<option key={idx} value={p.id}>{p.nombre}</option>))}</select></div><div><Label>Estado / Provincia</Label><input type="text" value={form.estado} onChange={e => setForm({...form, estado: e.target.value})} style={inputStyle} /></div><div><Label>CP</Label><input type="text" value={form.cp} onChange={e => setForm({...form, cp: e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><Label>Calle</Label><input type="text" value={form.calle} onChange={e => setForm({...form, calle: e.target.value})} style={inputStyle} /></div><div><Label>Num. Ext</Label><input type="text" value={form.numExt} onChange={e => setForm({...form, numExt: e.target.value})} style={inputStyle} /></div><div><Label>Num. Int</Label><input type="text" value={form.numInt} onChange={e => setForm({...form, numInt: e.target.value})} style={inputStyle} /></div><div><Label>Colonia</Label><input type="text" value={form.colonia} onChange={e => setForm({...form, colonia: e.target.value})} style={inputStyle} /></div><div><Label>Ciudad</Label><input type="text" value={form.ciudad} onChange={e => setForm({...form, ciudad: e.target.value})} style={inputStyle} /></div>
                 </div>
                 
                 <SectionTitle icon={<Phone size={16}/>} title="Contacto" />

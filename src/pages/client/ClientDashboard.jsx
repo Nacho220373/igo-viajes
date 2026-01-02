@@ -241,14 +241,52 @@ export default function ClientDashboard({ user }) {
     html2pdf().set(opt).from(element).save().then(() => setGenerandoPDF(false));
   };
 
-  // Resto de funciones CRUD pasajeros (sin cambios)...
-  const handleEditClick = () => { setEditForm({ ...selectedPasajero, fechaNacimiento: fechaParaInput(selectedPasajero.fechaNacimiento) }); setIsEditing(true); };
-  const eliminarPasajero = (id) => { showConfirm("¿Eliminar?", "Se desvinculará de tu cuenta.", async () => { const res = await enviarPeticion({ accion: 'desvincularPasajero', idPasajero: id, idCliente: user.idCliente }); if(res.exito){ setData(p => ({...p, pasajeros: p.pasajeros.filter(x=>x.id!==id)})); showAlert("Listo", "Eliminado."); } else showAlert("Error", res.error, "error"); }); };
-  const guardarNuevoPasajero = async(e) => { e.preventDefault(); setSaving(true); const res = await enviarPeticion({accion:'agregarPasajero', pasajero:{...newPasajeroForm, idCliente: user.idCliente}}); if(res.exito){ await cargarDatos(); setShowAddPasajero(false); setNewPasajeroForm({nombre:'', apellidoP:'', correo:'', telefono:''}); showAlert("Éxito", "Pasajero creado."); } else showAlert("Error", res.error, "error"); setSaving(false); };
-  const handleSavePasajero = async() => { setSaving(true); const res = await enviarPeticion({accion:'editarPasajero', pasajero:editForm}); if(res.exito){ await cargarDatos(); setIsEditing(false); setSelectedPasajero(null); showAlert("Éxito", "Guardado."); } else showAlert("Error", res.error, "error"); setSaving(false); };
-  const guardarPerfil = async(e) => { e.preventDefault(); setSaving(true); const res = await enviarPeticion({accion:'editarPerfilCliente', cliente:profileForm}); if(res.exito){ setClientProfile(profileForm); setShowProfileModal(false); showAlert("Éxito", "Guardado."); } else showAlert("Error", res.error, "error"); setSaving(false); };
+  // Funciones CRUD Pasajeros
+  const handleEditClick = (p) => { 
+      setSelectedPasajero(p);
+      setEditForm({ ...p, fechaNacimiento: fechaParaInput(p.fechaNacimiento) }); 
+      setIsEditing(true); 
+  };
   
-  // Helpers para links (sin cambios)
+  const handleSavePasajero = async (e) => {
+      e.preventDefault();
+      setSaving(true);
+      const res = await enviarPeticion({accion:'editarPasajero', pasajero:editForm}); 
+      if(res.exito){ 
+          await cargarDatos(); 
+          setIsEditing(false); 
+          setSelectedPasajero(null); 
+          showAlert("Éxito", "Datos actualizados."); 
+      } else showAlert("Error", res.error, "error"); 
+      setSaving(false); 
+  };
+
+  const guardarNuevoPasajero = async(e) => { 
+      e.preventDefault(); 
+      setSaving(true); 
+      const res = await enviarPeticion({accion:'agregarPasajero', pasajero:{...newPasajeroForm, idCliente: user.idCliente}}); 
+      if(res.exito){ 
+          await cargarDatos(); 
+          setShowAddPasajero(false); 
+          setNewPasajeroForm({nombre:'', apellidoP:'', correo:'', telefono:''}); 
+          showAlert("Éxito", "Pasajero creado."); 
+      } else showAlert("Error", res.error, "error"); 
+      setSaving(false); 
+  };
+
+  const guardarPerfil = async(e) => { 
+      e.preventDefault(); 
+      setSaving(true); 
+      const res = await enviarPeticion({accion:'editarPerfilCliente', cliente:profileForm}); 
+      if(res.exito){ 
+          setClientProfile(profileForm); 
+          setShowProfileModal(false); 
+          showAlert("Éxito", "Perfil actualizado."); 
+      } else showAlert("Error", res.error, "error"); 
+      setSaving(false); 
+  };
+  
+  // Helpers para links
   const handleGenerateLink = async (e, id) => { e.stopPropagation(); setGeneratingLinkId(id); const res = await enviarPeticion({accion:'generarTokenInvitacion', idPasajero:id}); if(res.exito){ await cargarDatos(); const link = getInviteUrl(res.token); navigator.clipboard.writeText(link); setCopiedId(id); setTimeout(()=>setCopiedId(null),3000); } else showAlert("Error", res.error); setGeneratingLinkId(null); };
   const handleCopyExistingLink = (e, t, id) => { e.stopPropagation(); navigator.clipboard.writeText(getInviteUrl(t)); setCopiedId(id); setTimeout(()=>setCopiedId(null),3000); };
 
@@ -273,9 +311,16 @@ export default function ClientDashboard({ user }) {
             <TabButton active={activeTab==='viajes'} onClick={()=>setActiveTab('viajes')} icon={<Map size={18}/>} label="Viajes" />
             <TabButton active={activeTab==='pasajeros'} onClick={()=>setActiveTab('pasajeros')} icon={<Users size={18}/>} label="Pasajeros" />
         </div>
+
+        {(activeTab === 'viajes' || activeTab === 'pasajeros') && (
+            <div style={{ background: '#f1f5f9', padding: '4px', borderRadius: '12px', display: 'flex', gap:'4px' }}>
+                <button onClick={() => setViewMode('grid')} style={{ padding: '6px', border: 'none', background: viewMode === 'grid' ? 'white' : 'transparent', borderRadius: '8px', color: viewMode === 'grid' ? 'var(--primary)' : '#94a3b8', cursor: 'pointer', display:'flex', boxShadow: viewMode==='grid'?'0 2px 5px rgba(0,0,0,0.05)':'' }}><LayoutGrid size={18}/></button>
+                <button onClick={() => setViewMode('list')} style={{ padding: '6px', border: 'none', background: viewMode === 'list' ? 'white' : 'transparent', borderRadius: '8px', color: viewMode === 'list' ? 'var(--primary)' : '#94a3b8', cursor: 'pointer', display:'flex', boxShadow: viewMode==='list'?'0 2px 5px rgba(0,0,0,0.05)':'' }}><LayoutList size={18}/></button>
+            </div>
+        )}
       </div>
 
-      {/* DASHBOARD CONTENT */}
+      {/* DASHBOARD CONTENT: RESUMEN */}
       {activeTab === 'resumen' && (
         <div className="fade-in dashboard-main-grid">
             <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
@@ -325,10 +370,109 @@ export default function ClientDashboard({ user }) {
         </div>
       )}
 
-      {/* OTROS TABS (VIAJES Y PASAJEROS) - Lógica estándar */}
-      {activeTab !== 'resumen' && (
-          <div className="fade-in" style={{textAlign:'center', padding:'40px', color:'#94a3b8', border:'2px dashed #e2e8f0', borderRadius:'20px'}}>
-              Funcionalidad estándar de {activeTab} disponible.
+      {/* TABS DE VIAJES */}
+      {activeTab === 'viajes' && (
+          <div className="fade-in">
+              <h3 style={{marginTop:0, marginBottom:'20px', color:'var(--primary-dark)'}}>Tus Expedientes</h3>
+              {data.viajesActivos.length === 0 && data.historialViajes.length === 0 ? (
+                  <div style={emptyStateStyle}>No hay registros de viajes.</div>
+              ) : (
+                  <div style={{ 
+                      display: viewMode === 'grid' ? 'grid' : 'flex', 
+                      gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(300px, 1fr))' : 'none', 
+                      flexDirection: viewMode === 'grid' ? 'row' : 'column',
+                      gap: '20px'
+                  }}>
+                      {[...data.viajesActivos, ...data.historialViajes].map(v => (
+                          <div 
+                            key={v.id} 
+                            className="dashboard-card" 
+                            style={{
+                                padding: '20px', 
+                                cursor: 'pointer',
+                                display: 'flex', 
+                                flexDirection: viewMode === 'list' ? 'row' : 'column', 
+                                alignItems: viewMode === 'list' ? 'center' : 'stretch', 
+                                gap: viewMode === 'list' ? '20px' : '0'
+                            }} 
+                            onClick={() => navigate(`/viaje/${v.id}`)}
+                          >
+                              <div style={{display:'flex', justifyContent:'space-between', marginBottom: viewMode === 'list' ? '0' : '10px', minWidth: viewMode==='list'?'150px':'auto'}}>
+                                  <div style={{background:'#f0f9ff', color:'var(--primary)', padding:'8px', borderRadius:'10px'}}><Plane size={24}/></div>
+                                  {viewMode !== 'list' && <span style={{fontSize:'0.75rem', fontWeight:'700', padding:'4px 10px', borderRadius:'20px', background: v.tipo==='Vacacional'?'#ecfdf5':'#fff7ed', color: v.tipo==='Vacacional'?'#10b981':'#c2410c'}}>{v.tipo}</span>}
+                              </div>
+                              
+                              <div style={{ flex: 1 }}>
+                                <h4 style={{margin:'0 0 5px 0', fontSize:'1.1rem', color:'var(--text-main)'}}>{v.nombre}</h4>
+                                <p style={{margin:0, color:'#64748b', fontSize:'0.9rem', display:'flex', alignItems:'center', gap:'6px'}}><Calendar size={14}/> {v.inicio} - {v.fin}</p>
+                              </div>
+
+                              {viewMode === 'list' && (
+                                <div style={{display:'flex', alignItems:'center', gap:'10px', minWidth:'150px', justifyContent:'flex-end'}}>
+                                    <span style={{fontSize:'0.75rem', fontWeight:'700', padding:'4px 10px', borderRadius:'20px', background: v.tipo==='Vacacional'?'#ecfdf5':'#fff7ed', color: v.tipo==='Vacacional'?'#10b981':'#c2410c'}}>{v.tipo}</span>
+                                    <ArrowRightCircle size={20} color="var(--primary)"/>
+                                </div>
+                              )}
+                          </div>
+                      ))}
+                  </div>
+              )}
+          </div>
+      )}
+
+      {/* TABS DE PASAJEROS */}
+      {activeTab === 'pasajeros' && (
+          <div className="fade-in">
+              {data.pasajeros.length === 0 ? (
+                  <div style={emptyStateStyle}>No tienes pasajeros registrados. ¡Agrega uno!</div>
+              ) : (
+                  <div style={{
+                      display: viewMode === 'grid' ? 'grid' : 'flex', 
+                      gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(280px, 1fr))' : 'none', 
+                      flexDirection: viewMode === 'grid' ? 'row' : 'column',
+                      gap: '20px'
+                  }}>
+                      {data.pasajeros.map(p => (
+                          <div 
+                            key={p.id} 
+                            className="dashboard-card" 
+                            style={{
+                                padding: '20px',
+                                display: 'flex', 
+                                flexDirection: viewMode === 'list' ? 'row' : 'column', 
+                                alignItems: viewMode === 'list' ? 'center' : 'stretch', 
+                                gap: viewMode === 'list' ? '20px' : '0'
+                            }}
+                          >
+                              <div style={{display:'flex', justifyContent:'space-between', marginBottom: viewMode === 'list' ? '0' : '10px', minWidth: viewMode==='list'?'150px':'auto'}}>
+                                  <div style={{background: p.registrado ? '#ecfdf5' : '#fef2f2', padding:'8px', borderRadius:'10px', color: p.registrado ? '#10b981' : '#f87171'}}><User size={20}/></div>
+                                  {viewMode !== 'list' && <button onClick={() => handleEditClick(p)} style={{border:'none', background:'transparent', cursor:'pointer', color:'#64748b'}}><Pencil size={16}/></button>}
+                              </div>
+                              
+                              <div style={{ flex: 1 }}>
+                                  <h4 style={{margin:'0 0 5px 0', color:'var(--text-main)'}}>{p.nombre} {p.apellidoP}</h4>
+                                  <p style={{margin:0, fontSize:'0.85rem', color:'#64748b'}}>{p.correo || 'Sin correo'}</p>
+                              </div>
+                              
+                              <div style={{
+                                  marginTop: viewMode === 'list' ? '0' : '15px', 
+                                  paddingTop: viewMode === 'list' ? '0' : '15px', 
+                                  borderTop: viewMode === 'list' ? 'none' : '1px solid #f1f5f9', 
+                                  display:'flex', justifyContent: viewMode==='list'?'flex-end':'space-between', 
+                                  alignItems:'center', gap:'15px', minWidth: viewMode==='list'?'250px':'auto'
+                              }}>
+                                  {viewMode === 'list' && <button onClick={() => handleEditClick(p)} style={{border:'none', background:'transparent', cursor:'pointer', color:'#64748b'}}><Pencil size={16}/></button>}
+                                  <span style={{fontSize:'0.75rem', fontWeight:'700', color: p.registrado ? '#10b981' : '#f59e0b'}}>{p.registrado ? 'Activo' : 'Pendiente'}</span>
+                                  {!p.registrado && (
+                                      <button onClick={(e) => p.token ? handleCopyExistingLink(e, p.token, p.id) : handleGenerateLink(e, p.id)} style={{background:'white', border:'1px solid #e2e8f0', padding:'6px 12px', borderRadius:'20px', cursor:'pointer', display:'flex', gap:'5px', alignItems:'center', fontSize:'0.75rem', color:'var(--primary)', fontWeight:'700'}}>
+                                          {generatingLinkId === p.id ? <Loader size={12} className="spin"/> : (copiedId === p.id ? <Check size={12}/> : <Copy size={12}/>)} Link
+                                      </button>
+                                  )}
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              )}
           </div>
       )}
 
@@ -355,6 +499,46 @@ export default function ClientDashboard({ user }) {
                 </div>
             </div>
         </div>
+      )}
+
+      {/* MODAL EDITAR PASAJERO */}
+      {isEditing && (
+          <div style={modalOverlayStyle}>
+              <div style={{...modalContentStyle, maxWidth:'500px'}}>
+                  <div style={{padding:'20px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between'}}><h3 style={{margin:0}}>Editar Pasajero</h3><button onClick={()=>setIsEditing(false)} style={closeBtnStyle}><X size={18}/></button></div>
+                  <div style={{padding:'25px'}}>
+                      <form onSubmit={handleSavePasajero} style={{display:'grid', gap:'15px'}}>
+                          <div className="grid-responsive-2">
+                              <div><label style={labelStyle}>Nombre</label><input style={inputStyle} value={editForm.nombre} onChange={e=>setEditForm({...editForm, nombre:e.target.value})} required/></div>
+                              <div><label style={labelStyle}>Apellido P.</label><input style={inputStyle} value={editForm.apellidoP} onChange={e=>setEditForm({...editForm, apellidoP:e.target.value})} required/></div>
+                          </div>
+                          <div><label style={labelStyle}>Correo</label><input type="email" style={inputStyle} value={editForm.correo} onChange={e=>setEditForm({...editForm, correo:e.target.value})}/></div>
+                          <div><label style={labelStyle}>Teléfono</label><input style={inputStyle} value={editForm.telefono} onChange={e=>setEditForm({...editForm, telefono:e.target.value})}/></div>
+                          <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Guardando...' : 'Guardar Cambios'}</button>
+                      </form>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL NUEVO PASAJERO */}
+      {showAddPasajero && (
+          <div style={modalOverlayStyle}>
+              <div style={{...modalContentStyle, maxWidth:'500px'}}>
+                  <div style={{padding:'20px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between'}}><h3 style={{margin:0}}>Nuevo Pasajero</h3><button onClick={()=>setShowAddPasajero(false)} style={closeBtnStyle}><X size={18}/></button></div>
+                  <div style={{padding:'25px'}}>
+                      <form onSubmit={guardarNuevoPasajero} style={{display:'grid', gap:'15px'}}>
+                          <div className="grid-responsive-2">
+                              <div><label style={labelStyle}>Nombre *</label><input style={inputStyle} value={newPasajeroForm.nombre} onChange={e=>setNewPasajeroForm({...newPasajeroForm, nombre:e.target.value})} required/></div>
+                              <div><label style={labelStyle}>Apellido P. *</label><input style={inputStyle} value={newPasajeroForm.apellidoP} onChange={e=>setNewPasajeroForm({...newPasajeroForm, apellidoP:e.target.value})} required/></div>
+                          </div>
+                          <div><label style={labelStyle}>Correo</label><input type="email" style={inputStyle} value={newPasajeroForm.correo} onChange={e=>setNewPasajeroForm({...newPasajeroForm, correo:e.target.value})}/></div>
+                          <div><label style={labelStyle}>Teléfono</label><input style={inputStyle} value={newPasajeroForm.telefono} onChange={e=>setNewPasajeroForm({...newPasajeroForm, telefono:e.target.value})}/></div>
+                          <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Creando...' : 'Crear Pasajero'}</button>
+                      </form>
+                  </div>
+              </div>
+          </div>
       )}
 
       {/* MODAL REPORTE UNIFICADO */}

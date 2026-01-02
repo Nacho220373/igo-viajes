@@ -22,9 +22,9 @@ export default function AdminProveedores() {
   const [viewMode, setViewMode] = useState('grid'); 
 
   const formInicial = { 
-      id: '', nombre: '', razonSocial: '', rfc: '', pais: '', ciudad: '', colonia: '', 
+      id: '', nombre: '', razonSocial: '', rfc: '', pais: '', estado: '', ciudad: '', colonia: '', 
       calle: '', numExt: '', numInt: '', cp: '', correo: '',
-      // CAMBIO: Teléfonos dinámicos
+      // Teléfonos dinámicos
       telefonos: [{ tipo: 'Oficina', lada: '52', numero: '' }]
   };
   const [form, setForm] = useState(formInicial);
@@ -69,7 +69,7 @@ export default function AdminProveedores() {
           ? p.telefonos 
           : [{ tipo: 'Oficina', lada: p.lada || '52', numero: p.telefono || '' }];
       
-      setForm({ ...p, telefonos: telefonosList }); 
+      setForm({ ...p, telefonos: telefonosList, estado: p.estado || '' }); 
       setShowModal(true); 
   };
 
@@ -164,7 +164,7 @@ export default function AdminProveedores() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Nombre Comercial *</label><input required type="text" value={form.nombre} onChange={e=>setForm({...form, nombre:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Razón Social</label><input type="text" value={form.razonSocial} onChange={e=>setForm({...form, razonSocial:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>RFC</label><input type="text" value={form.rfc} onChange={e=>setForm({...form, rfc:e.target.value})} style={inputStyle} /></div></div>
                     
                     <div style={{ borderTop: '1px solid #f1f5f9', margin: '10px 0' }}></div><label style={{...labelStyle, color:'var(--primary)'}}>UBICACIÓN</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={labelStyle}>País</label><select value={form.pais} onChange={e=>setForm({...form, pais:e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{paises.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div><div><label style={labelStyle}>CP</label><input type="text" value={form.cp} onChange={e=>setForm({...form, cp:e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Calle</label><input type="text" value={form.calle} onChange={e=>setForm({...form, calle:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Núm. Exterior</label><input type="text" value={form.numExt} onChange={e=>setForm({...form, numExt:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Núm. Interior</label><input type="text" value={form.numInt} onChange={e=>setForm({...form, numInt:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Colonia</label><input type="text" value={form.colonia} onChange={e=>setForm({...form, colonia:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Ciudad</label><input type="text" value={form.ciudad} onChange={e=>setForm({...form, ciudad:e.target.value})} style={inputStyle} /></div></div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={labelStyle}>País</label><select value={form.pais} onChange={e=>setForm({...form, pais:e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{paises.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div><div><label style={labelStyle}>Estado / Provincia</label><input type="text" value={form.estado} onChange={e=>setForm({...form, estado:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>CP</label><input type="text" value={form.cp} onChange={e=>setForm({...form, cp:e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><label style={labelStyle}>Calle</label><input type="text" value={form.calle} onChange={e=>setForm({...form, calle:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Núm. Exterior</label><input type="text" value={form.numExt} onChange={e=>setForm({...form, numExt:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Núm. Interior</label><input type="text" value={form.numInt} onChange={e=>setForm({...form, numInt:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Colonia</label><input type="text" value={form.colonia} onChange={e=>setForm({...form, colonia:e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Ciudad</label><input type="text" value={form.ciudad} onChange={e=>setForm({...form, ciudad:e.target.value})} style={inputStyle} /></div></div>
                     
                     <div style={{ borderTop: '1px solid #f1f5f9', margin: '10px 0' }}></div><label style={{...labelStyle, color:'var(--primary)'}}>CONTACTO</label>
                     
