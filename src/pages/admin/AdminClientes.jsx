@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { enviarPeticion } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Search, MapPin, Phone, Building, Briefcase, Mail, X, ArrowLeft, Users, Home, Globe, CheckCircle, UserCheck, LayoutGrid, LayoutList, Copy, Check, Loader } from 'lucide-react';
+import { Plus, Search, MapPin, Phone, Building, Briefcase, Mail, X, ArrowLeft, Users, Home, Globe, CheckCircle, UserCheck, LayoutGrid, LayoutList, Copy, Check, Loader, Trash2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function AdminClientes() {
@@ -27,8 +27,16 @@ export default function AdminClientes() {
 
   // Formulario
   const formInicial = {
-    nombre: '', razonSocial: '', rfc: '', pais: '', ciudad: '', colonia: '', calle: '', 
-    numExt: '', numInt: '', cp: '', lada: '', telefono: '', correo: '', idUsuario: ''
+    nombre: '', 
+    tipoPersona: 'Física', // Default
+    razonSocial: '', 
+    rfc: '', 
+    
+    // --- NUEVO: ARRAY DE TELÉFONOS ---
+    telefonos: [{ tipo: 'Móvil', lada: '52', numero: '' }],
+
+    pais: '', estado: '', ciudad: '', colonia: '', calle: '', 
+    numExt: '', numInt: '', cp: '', correo: '', idUsuario: ''
   };
   const [form, setForm] = useState(formInicial);
 
@@ -56,10 +64,56 @@ export default function AdminClientes() {
     } catch (error) { console.error("Error cargando datos:", error); } finally { setLoading(false); }
   };
 
+  // --- MANEJO DE TELÉFONOS DINÁMICOS ---
+  const handlePhoneChange = (index, field, value) => {
+      const nuevosTelefonos = [...form.telefonos];
+      nuevosTelefonos[index][field] = value;
+      setForm({ ...form, telefonos: nuevosTelefonos });
+  };
+
+  const addPhone = () => {
+      setForm({ ...form, telefonos: [...form.telefonos, { tipo: 'Oficina', lada: '52', numero: '' }] });
+  };
+
+  const removePhone = (index) => {
+      if (form.telefonos.length === 1) return; // Evitar dejar sin teléfono
+      const nuevosTelefonos = form.telefonos.filter((_, i) => i !== index);
+      setForm({ ...form, telefonos: nuevosTelefonos });
+  };
+
+  // --- VALIDACIÓN RFC ---
+  const validarRFC = () => {
+    if (!form.rfc) return true; // Si está vacío, permitimos guardar (opcional)
+    
+    const rfc = form.rfc.toUpperCase();
+    const longitud = form.tipoPersona === 'Moral' ? 12 : 13;
+    
+    if (rfc.length !== longitud) {
+      alert(`El RFC para Persona ${form.tipoPersona} debe tener exactamente ${longitud} caracteres.`);
+      return false;
+    }
+    
+    const regex = form.tipoPersona === 'Moral' 
+      ? /^[A-ZÑ&]{3}\d{6}[A-Z0-9]{3}$/ 
+      : /^[A-ZÑ&]{4}\d{6}[A-Z0-9]{3}$/;
+
+    if (!regex.test(rfc)) {
+      alert(`El formato del RFC no es válido para Persona ${form.tipoPersona}.`);
+      return false;
+    }
+
+    return true;
+  };
+
   const handleGuardar = async (e) => {
     e.preventDefault();
     setProcesando(true);
+    
     if (!form.nombre) { alert("El nombre es obligatorio"); setProcesando(false); return; }
+    
+    // Validar RFC
+    if (form.rfc && !validarRFC()) { setProcesando(false); return; }
+
     const respuesta = await enviarPeticion({ accion: 'agregarCliente', cliente: form });
     if (respuesta.exito) {
       setShowModal(false); setForm(formInicial); setMensajeExito(respuesta.mensaje || "Cliente registrado exitosamente");
@@ -240,13 +294,81 @@ export default function AdminClientes() {
             </div>
             <div style={{ padding: '30px' }}>
               <form onSubmit={handleGuardar} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                
+                {/* SECCIÓN 1: VINCULACIÓN */}
                 <div style={{ gridColumn: '1 / -1', background: '#eff6ff', padding: '15px', borderRadius: '12px', border: '1px dashed #60a5fa' }}><div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', color: 'var(--primary-dark)', fontWeight: '800', fontSize: '0.9rem' }}><UserCheck size={18} /> VINCULAR A USUARIO WEB</div><div className="form-group" style={{ marginBottom: 0 }}><label style={{ fontSize: '0.85rem' }}>Seleccionar Usuario Existente (Opcional)</label><select value={form.idUsuario} onChange={e => setForm({...form, idUsuario: e.target.value})} style={{ ...inputStyle, background: 'white' }}><option value="">-- Sin vincular (Solo registro administrativo) --</option>{usuariosLibres.map((u) => (<option key={u.id} value={u.id}>{u.nombre} ({u.correo})</option>))}</select></div></div>
+                
+                {/* SECCIÓN 2: DATOS GENERALES */}
                 <div style={{ gridColumn: '1 / -1', color: 'var(--primary)', fontWeight: '800', fontSize: '0.9rem', marginTop: '10px' }}>DATOS GENERALES Y FISCALES</div>
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Nombre Completo / Comercial *</label><input required type="text" className="input-field" value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Razón Social</label><input type="text" className="input-field" value={form.razonSocial} onChange={e => setForm({...form, razonSocial: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>RFC</label><input type="text" className="input-field" value={form.rfc} onChange={e => setForm({...form, rfc: e.target.value.toUpperCase()})} style={inputStyle} /></div>
+                
+                {/* SELECTOR TIPO PERSONA */}
+                <div className="form-group">
+                    <label style={{fontWeight:'700', fontSize:'0.9rem', color:'#64748b'}}>Tipo de Persona</label>
+                    <div style={{ display: 'flex', gap: '15px', marginTop:'5px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize:'0.9rem', color:'#334155' }}>
+                            <input type="radio" name="tipoPersona" value="Física" checked={form.tipoPersona === 'Física'} onChange={e => setForm({...form, tipoPersona: e.target.value, rfc: ''})} /> 
+                            Física
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize:'0.9rem', color:'#334155' }}>
+                            <input type="radio" name="tipoPersona" value="Moral" checked={form.tipoPersona === 'Moral'} onChange={e => setForm({...form, tipoPersona: e.target.value, rfc: ''})} /> 
+                            Moral
+                        </label>
+                    </div>
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Nombre Completo / Comercial *</label><input required type="text" value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} style={inputStyle} /></div>
+                <div className="form-group"><label>Razón Social</label><input type="text" value={form.razonSocial} onChange={e => setForm({...form, razonSocial: e.target.value})} style={inputStyle} /></div>
+                
+                <div className="form-group">
+                    <label>RFC ({form.tipoPersona === 'Moral' ? '12' : '13'} caracteres)</label>
+                    <input type="text" value={form.rfc} onChange={e => setForm({...form, rfc: e.target.value.toUpperCase()})} maxLength={form.tipoPersona === 'Moral' ? 12 : 13} style={inputStyle} placeholder={form.tipoPersona === 'Moral' ? 'AAA000000XXX' : 'AAAA000000XXX'} />
+                    <div style={{fontSize:'0.75rem', color:'#94a3b8', textAlign:'right', marginTop:'4px'}}>{form.rfc.length} / {form.tipoPersona === 'Moral' ? 12 : 13}</div>
+                </div>
+
+                {/* SECCIÓN 3: DIRECCIÓN */}
                 <div style={{ gridColumn: '1 / -1', color: 'var(--primary)', fontWeight: '800', fontSize: '0.9rem', marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>DIRECCIÓN</div>
-                <div className="form-group"><label>País</label><select value={form.pais} onChange={e => setForm({...form, pais: e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{paises.map((p, idx) => (<option key={idx} value={p.id}>{p.nombre}</option>))}</select></div><div className="form-group"><label>Código Postal</label><input type="text" value={form.cp} onChange={e => setForm({...form, cp: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Ciudad / Estado</label><input type="text" value={form.ciudad} onChange={e => setForm({...form, ciudad: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Colonia</label><input type="text" value={form.colonia} onChange={e => setForm({...form, colonia: e.target.value})} style={inputStyle} /></div><div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Calle</label><input type="text" value={form.calle} onChange={e => setForm({...form, calle: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Núm. Exterior</label><input type="text" value={form.numExt} onChange={e => setForm({...form, numExt: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Núm. Interior</label><input type="text" value={form.numInt} onChange={e => setForm({...form, numInt: e.target.value})} style={inputStyle} /></div>
+                <div className="form-group"><label>País</label><select value={form.pais} onChange={e => setForm({...form, pais: e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{paises.map((p, idx) => (<option key={idx} value={p.id}>{p.nombre}</option>))}</select></div><div className="form-group"><label>Código Postal</label><input type="text" value={form.cp} onChange={e => setForm({...form, cp: e.target.value})} style={inputStyle} /></div>
+                <div className="form-group"><label>Estado</label><input type="text" value={form.estado} onChange={e => setForm({...form, estado: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Ciudad</label><input type="text" value={form.ciudad} onChange={e => setForm({...form, ciudad: e.target.value})} style={inputStyle} /></div>
+                <div className="form-group"><label>Colonia</label><input type="text" value={form.colonia} onChange={e => setForm({...form, colonia: e.target.value})} style={inputStyle} /></div><div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Calle</label><input type="text" value={form.calle} onChange={e => setForm({...form, calle: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Núm. Exterior</label><input type="text" value={form.numExt} onChange={e => setForm({...form, numExt: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Núm. Interior</label><input type="text" value={form.numInt} onChange={e => setForm({...form, numInt: e.target.value})} style={inputStyle} /></div>
+                
+                {/* SECCIÓN 4: CONTACTO CON MULTI-TELÉFONO */}
                 <div style={{ gridColumn: '1 / -1', color: 'var(--primary)', fontWeight: '800', fontSize: '0.9rem', marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>CONTACTO</div>
-                <div className="form-group"><label>Lada</label><input type="text" placeholder="Ej. 52" value={form.lada} onChange={e => setForm({...form, lada: e.target.value})} style={inputStyle} /></div><div className="form-group"><label>Teléfono</label><input type="tel" value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})} style={inputStyle} /></div><div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Correo Electrónico</label><input type="email" value={form.correo} onChange={e => setForm({...form, correo: e.target.value})} style={inputStyle} /></div>
+                
+                {/* Lista Dinámica de Teléfonos */}
+                <div style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <label style={{ fontSize: '0.9rem', fontWeight: '700', color: '#64748b' }}>Teléfonos</label>
+                        <button type="button" onClick={addPhone} style={{ background: 'white', border: '1px solid #cbd5e1', cursor: 'pointer', borderRadius: '20px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: '700', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}><Plus size={14}/> Agregar</button>
+                    </div>
+                    {form.telefonos.map((tel, idx) => (
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '100px 80px 1fr 30px', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
+                            <div className="form-group" style={{marginBottom:0}}>
+                                {idx === 0 && <label style={{fontSize:'0.75rem', marginBottom:'2px'}}>Tipo</label>}
+                                <select value={tel.tipo} onChange={e => handlePhoneChange(idx, 'tipo', e.target.value)} style={{...inputStyle, padding:'8px'}}>
+                                    <option value="Móvil">Móvil</option>
+                                    <option value="Oficina">Oficina</option>
+                                    <option value="Casa">Casa</option>
+                                    <option value="Fax">Fax</option>
+                                    <option value="Otro">Otro</option>
+                                </select>
+                            </div>
+                            <div className="form-group" style={{marginBottom:0}}>
+                                {idx === 0 && <label style={{fontSize:'0.75rem', marginBottom:'2px'}}>Lada</label>}
+                                <input type="text" value={tel.lada} onChange={e => handlePhoneChange(idx, 'lada', e.target.value)} style={{...inputStyle, padding:'8px'}} placeholder="52"/>
+                            </div>
+                            <div className="form-group" style={{marginBottom:0}}>
+                                {idx === 0 && <label style={{fontSize:'0.75rem', marginBottom:'2px'}}>Número</label>}
+                                <input type="tel" value={tel.numero} onChange={e => handlePhoneChange(idx, 'numero', e.target.value)} style={{...inputStyle, padding:'8px'}} placeholder="10 dígitos"/>
+                            </div>
+                            {form.telefonos.length > 1 && (
+                                <button type="button" onClick={() => removePhone(idx)} style={{ background: '#fee2e2', border: 'none', borderRadius: '8px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#dc2626', marginBottom:'2px' }}><Trash2 size={16}/></button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '10px' }}><label>Correo Electrónico</label><input type="email" value={form.correo} onChange={e => setForm({...form, correo: e.target.value})} style={inputStyle} /></div>
+                
                 <div style={{ gridColumn: '1 / -1', marginTop: '20px' }}><button type="submit" className="btn-primary" disabled={procesando} style={{ width: '100%' }}>{procesando ? 'Guardando...' : 'Guardar Cliente Completo'}</button></div>
               </form>
             </div>
@@ -254,7 +376,7 @@ export default function AdminClientes() {
         </div>
       )}
 
-      {/* MODAL DETALLE */}
+      {/* MODAL DETALLE (ACTUALIZADO PARA MOSTRAR LISTA DE TELÉFONOS) */}
       {showDetail && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -264,6 +386,7 @@ export default function AdminClientes() {
              </div>
              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <DetalleRow label="Razón Social" value={showDetail.razonSocial} icon={<Building size={16} />} />
+                <DetalleRow label="Tipo de Persona" value={showDetail.tipoPersona || 'Física'} icon={<UserCheck size={16} />} />
                 <DetalleRow label="RFC" value={showDetail.rfc} icon={<Briefcase size={16} />} />
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '5px 0' }}></div>
                 <h4 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Ubicación</h4>
@@ -271,9 +394,28 @@ export default function AdminClientes() {
                 <DetalleRow label="Colonia" value={showDetail.colonia} />
                 <DetalleRow label="Ciudad/CP" value={`${showDetail.ciudad || ''} ${showDetail.cp ? '- CP '+showDetail.cp : ''}`} icon={<MapPin size={16} />} />
                 <DetalleRow label="País" value={getNombrePais(showDetail.pais)} icon={<Globe size={16} />} />
+                {showDetail.estado && <DetalleRow label="Estado" value={showDetail.estado} icon={<MapPin size={16} />} />}
+
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '5px 0' }}></div>
                 <h4 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Contacto</h4>
-                <DetalleRow label="Teléfono" value={showDetail.telefono} icon={<Phone size={16} />} />
+                
+                {/* RENDEREADO DE TELÉFONOS EN DETALLE */}
+                {showDetail.telefonos && showDetail.telefonos.length > 0 ? (
+                    <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+                        {showDetail.telefonos.map((tel, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ color: '#94a3b8' }}><Phone size={16} /></div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase' }}>{tel.tipo}</div>
+                                    <div style={{ fontSize: '1rem', color: 'var(--text-main)', fontWeight: '500' }}>({tel.lada}) {tel.numero}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <DetalleRow label="Teléfono" value={showDetail.telefono} icon={<Phone size={16} />} />
+                )}
+
                 <DetalleRow label="Correo" value={showDetail.correo} icon={<Mail size={16} />} />
              </div>
              <div style={{ padding: '20px', borderTop: '1px solid #e2e8f0', textAlign: 'right' }}><button onClick={() => setShowDetail(null)} className="btn-primary" style={{ width: 'auto', display: 'inline-flex', padding: '10px 20px' }}>Cerrar</button></div>

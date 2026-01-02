@@ -1,25 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Smartphone, RotateCcw, X, Check } from 'lucide-react';
 
 export default function MobileWarning() {
   const [isVisible, setIsVisible] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  
+  // Control para no volver a molestar en la misma sesión si ya se cerró una vez (aunque no marque el check)
+  const sessionDismissed = useRef(false);
 
   useEffect(() => {
-    // 1. Detección simple por ancho de pantalla (común para móviles/tablets verticales)
     const checkMobile = () => {
-      const isMobileWidth = window.innerWidth < 1024; // Abarca móviles y iPads en vertical
+      // Ajustamos a 900px para tolerar mejor la pantalla dividida en escritorio
+      const isMobileWidth = window.innerWidth < 900; 
       const hasSeenWarning = localStorage.getItem('igo_hide_mobile_warning');
       
-      // Solo mostramos si es dispositivo pequeño Y no ha marcado "no mostrar"
-      if (isMobileWidth && !hasSeenWarning) {
+      // Solo mostramos si es pequeño, no está guardado en localStorage Y no se ha cerrado en esta sesión
+      if (isMobileWidth && !hasSeenWarning && !sessionDismissed.current) {
         setIsVisible(true);
       }
     };
 
     checkMobile();
     
-    // Opcional: Escuchar cambios de tamaño (por si gira la pantalla en vivo)
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
@@ -28,6 +30,8 @@ export default function MobileWarning() {
     if (dontShowAgain) {
       localStorage.setItem('igo_hide_mobile_warning', 'true');
     }
+    // Marcamos que ya se cerró en esta sesión para que no reaparezca al redimensionar
+    sessionDismissed.current = true;
     setIsVisible(false);
   };
 
@@ -49,9 +53,9 @@ export default function MobileWarning() {
         </h3>
         
         <p style={{ fontSize: '0.95rem', color: '#64748b', lineHeight: '1.5', marginBottom: '20px' }}>
-          Esta es una PWA diseñada para computadora que se adapta muy bien a cualquier dispositivo, pero puede fallar. 
+          Esta aplicación está optimizada para escritorio. Si ves esto, es porque tu pantalla es angosta.
           <br/><br/>
-          <strong>Tip:</strong> Si se llega a cortar, gira tu teléfono para ver la pantalla completa. Seguiremos trabajando para hacer tu experiencia cada vez mejor.
+          <strong>Tip:</strong> Maximiza la ventana o gira tu dispositivo para una mejor experiencia.
         </p>
 
         {/* Opción No volver a mostrar */}

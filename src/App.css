@@ -1,8 +1,9 @@
 #root {
-  max-width: 100%; /* Aseguramos ancho completo */
-  margin: 0 auto;
-  padding: 0; /* Quitamos padding global que forzaba márgenes */
-  text-align: left; /* Alineación natural para lectura */
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  /* Quitamos estilos que conflictos con el scroll */
 }
 
 /* Clases de utilidad para contenedores responsivos */
@@ -30,7 +31,7 @@
   }
 }
 
-/* Logos y Animaciones (Mantenidos) */
+/* Logos y Animaciones */
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -45,12 +46,8 @@
 }
 
 @keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -59,10 +56,5 @@
   }
 }
 
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
+.card { padding: 2em; }
+.read-the-docs { color: #888; }

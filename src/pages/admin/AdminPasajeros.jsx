@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { enviarPeticion } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../../components/SearchableSelect';
-import { Plus, Search, User, Building, Phone, Mail, X, ArrowLeft, CreditCard, FileText, MapPin, Flag, Calendar, LayoutGrid, LayoutList, Copy, Check, Loader, UserCheck } from 'lucide-react';
+import { Plus, Search, User, Building, Phone, Mail, X, ArrowLeft, CreditCard, FileText, MapPin, Flag, Calendar, LayoutGrid, LayoutList, Copy, Check, Loader, UserCheck, Trash2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function AdminPasajeros() {
@@ -14,11 +14,10 @@ export default function AdminPasajeros() {
   const [clientes, setClientes] = useState([]); 
   const [nacionalidades, setNacionalidades] = useState([]);
   const [paises, setPaises] = useState([]); 
-  const [usuariosLibres, setUsuariosLibres] = useState([]); // Lista de usuarios para vincular
+  const [usuariosLibres, setUsuariosLibres] = useState([]);
   
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [showDetail, setShowDetail] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [procesando, setProcesando] = useState(false);
@@ -31,14 +30,17 @@ export default function AdminPasajeros() {
   const formInicial = {
     idCliente: '', nombre: '', apellidoP: '', apellidoM: '', fechaNacimiento: '', 
     nacionalidad: '', pasaporte: '', visa: '', pais: '', ciudad: '', colonia: '', 
-    calle: '', numExt: '', numInt: '', cp: '', lada: '', telefono: '', correo: '',
-    idUsuario: '' // NUEVO CAMPO DE VINCULACIÓN
+    calle: '', numExt: '', numInt: '', cp: '', correo: '',
+    // CAMBIO: Estructura de teléfonos múltiples
+    telefonos: [{ tipo: 'Móvil', lada: '52', numero: '' }],
+    idUsuario: '' 
   };
   const [form, setForm] = useState(formInicial);
 
   useEffect(() => {
     cargarDatos();
     if (location.state?.openCreate) {
+        setForm(formInicial);
         setShowModal(true);
         navigate(location.pathname, { replace: true, state: {} });
     }
@@ -51,7 +53,7 @@ export default function AdminPasajeros() {
         enviarPeticion({ accion: 'obtenerPasajeros', rol: user.rol }),
         enviarPeticion({ accion: 'obtenerClientes', rol: user.rol }),
         enviarPeticion({ accion: 'obtenerListas' }),
-        enviarPeticion({ accion: 'obtenerUsuariosLibres' }) // Traer usuarios para vincular
+        enviarPeticion({ accion: 'obtenerUsuariosLibres' }) 
       ]);
 
       if (resPasajeros.exito) setPasajeros(resPasajeros.datos);
@@ -67,16 +69,26 @@ export default function AdminPasajeros() {
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
+  // --- LÓGICA DE TELÉFONOS ---
+  const handlePhoneChange = (index, field, value) => {
+      const nuevos = [...form.telefonos];
+      nuevos[index][field] = value;
+      setForm({ ...form, telefonos: nuevos });
+  };
+  const addPhone = () => setForm({ ...form, telefonos: [...form.telefonos, { tipo: 'Móvil', lada: '52', numero: '' }] });
+  const removePhone = (idx) => {
+      if (form.telefonos.length === 1) return;
+      setForm({ ...form, telefonos: form.telefonos.filter((_, i) => i !== idx) });
+  };
+
   const handleGuardar = async (e) => {
     e.preventDefault();
     if (!form.idCliente) return alert("Debes seleccionar un Cliente (Empresa/Titular) o asignar uno Genérico.");
     setProcesando(true);
-    // Si estamos editando, usamos 'editarPasajero', si no 'agregarPasajero'
-    // Como tu backend usa 'agregarPasajero' para nuevos, asumimos que este modal es solo para nuevos por ahora
-    // o adaptamos si el form tiene ID.
-    const accion = form.id ? 'editarPasajero' : 'agregarPasajero';
     
+    const accion = form.id ? 'editarPasajero' : 'agregarPasajero';
     const respuesta = await enviarPeticion({ accion: accion, pasajero: form });
+    
     if (respuesta.exito) {
       setShowModal(false); setForm(formInicial); setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
@@ -86,19 +98,24 @@ export default function AdminPasajeros() {
     setProcesando(false);
   };
 
-  // Función para abrir modal en modo Edición (si quisieras habilitarlo)
   const handleEditar = (p) => {
-      // Convertir fecha para input date (yyyy-MM-dd)
       let fechaInput = '';
       if(p.fechaNacimiento && p.fechaNacimiento.includes('/')) {
           const [d, m, y] = p.fechaNacimiento.split('/');
           fechaInput = `${y}-${m}-${d}`; 
+      } else if (p.fechaNacimiento && p.fechaNacimiento.includes('-')) {
+          fechaInput = p.fechaNacimiento;
       }
       
+      // Recuperar teléfonos si existen, si no, usar el campo plano antiguo
+      let listaTelefonos = p.telefonos && p.telefonos.length > 0 
+          ? p.telefonos 
+          : [{ tipo: 'Móvil', lada: p.lada || '52', numero: p.telefono || '' }];
+
       setForm({
           ...p,
           fechaNacimiento: fechaInput,
-          // Mapeamos campos que pueden faltar
+          telefonos: listaTelefonos,
           idUsuario: p.idUsuario || ''
       });
       setShowModal(true);
@@ -116,22 +133,16 @@ export default function AdminPasajeros() {
         navigator.clipboard.writeText(link);
         setCopiedId(idPasajero);
         setTimeout(() => setCopiedId(null), 3000);
-    } else { 
-        alert("Error al generar enlace: " + res.error); 
-    }
+    } else { alert("Error: " + res.error); }
     setGeneratingLinkId(null);
   };
 
   const handleCopyExistingLink = (e, token, idPasajero) => {
       e.stopPropagation();
-      const link = getInviteUrl(token);
-      navigator.clipboard.writeText(link);
+      navigator.clipboard.writeText(getInviteUrl(token));
       setCopiedId(idPasajero);
       setTimeout(() => setCopiedId(null), 3000);
   };
-
-  const getNombrePais = (id) => paises.find(item => item.id == id)?.nombre || id;
-  const getNombreNacionalidad = (id) => nacionalidades.find(item => item.id == id)?.nombre || id;
 
   const filtrados = pasajeros.filter(p => 
     (p.nombre + " " + p.apellidoP).toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -162,14 +173,11 @@ export default function AdminPasajeros() {
             display: viewMode === 'grid' ? 'grid' : 'flex', 
             gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(300px, 1fr))' : 'none', 
             flexDirection: viewMode === 'grid' ? 'row' : 'column',
-            gap: '20px', 
-            alignItems: 'start' 
+            gap: '20px', alignItems: 'start' 
         }}>
           {filtrados.map(p => (
             <div 
-              key={p.id} 
-              className="dashboard-card" 
-              onClick={() => handleEditar(p)} // AHORA ABRE EDICIÓN
+              key={p.id} className="dashboard-card" onClick={() => handleEditar(p)}
               style={{ 
                   padding: '20px', cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s', height: 'auto',
                   display: 'flex', flexDirection: viewMode === 'list' ? 'row' : 'column', alignItems: viewMode === 'list' ? 'center' : 'stretch', gap: viewMode === 'list' ? '20px' : '0'
@@ -177,7 +185,6 @@ export default function AdminPasajeros() {
               onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
             >
-              {/* Contenido Tarjeta */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: viewMode === 'list' ? '0' : '10px', minWidth: viewMode==='list'?'200px':'auto' }}>
                 <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
                     <div style={{ background: p.registrado ? '#ecfdf5' : '#fef2f2', padding: '8px', borderRadius: '12px', color: p.registrado ? '#10b981' : '#f87171' }}><User size={20} /></div>
@@ -207,19 +214,13 @@ export default function AdminPasajeros() {
                   borderLeft: viewMode === 'list' ? '1px solid #f1f5f9' : 'none', 
                   paddingTop: viewMode === 'list' ? '0' : '12px', 
                   paddingLeft: viewMode === 'list' ? '20px' : '0', 
-                  display: 'flex', 
-                  flexDirection: viewMode === 'list' ? 'row' : 'column', 
-                  gap: viewMode === 'list' ? '30px' : '8px',
-                  flex: 1,
+                  display: 'flex', flexDirection: viewMode === 'list' ? 'row' : 'column', 
+                  gap: viewMode === 'list' ? '30px' : '8px', flex: 1,
                   justifyContent: viewMode === 'list' ? 'flex-start' : 'space-between',
                   alignItems: viewMode === 'list' ? 'center' : 'stretch'
               }}>
-                 {viewMode === 'list' && (
-                    <div style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                      <Building size={12} /> {p.nombreCliente}
-                    </div>
-                 )}
-                 {/* LINK VISIBLE */}
+                 {viewMode === 'list' && <div style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><Building size={12} /> {p.nombreCliente}</div>}
+                 
                  {p.token && (
                       <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px dashed #cbd5e1', display:'flex', alignItems:'center', gap:'10px', maxWidth: viewMode==='list'?'200px':'100%' }} onClick={(e)=>e.stopPropagation()}>
                           <div style={{flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:'0.7rem', color:'#64748b'}}>{getInviteUrl(p.token)}</div>
@@ -255,18 +256,21 @@ export default function AdminPasajeros() {
         </div>
       )}
 
-      {/* MODAL CREAR/EDITAR PASAJERO */}
+      {/* MODAL CREAR/EDITAR PASAJERO - CORREGIDO SCROLL */}
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', overflow:'visible' }}>
-            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            
+            {/* Header del Modal */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-main)', fontWeight: '800' }}>{form.id ? 'Editar Pasajero' : 'Nuevo Pasajero'}</h2>
                 <button onClick={() => setShowModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><X size={18} /></button>
             </div>
-            <div style={{ padding: '30px' }}>
-              <form onSubmit={handleGuardar} style={{ display: 'grid', gap: '20px' }}>
+
+            {/* Cuerpo del Modal con Scroll */}
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+              <form id="pasajeroForm" onSubmit={handleGuardar} style={{ display: 'grid', gap: '20px' }}>
                 
-                {/* 1. SELECCIÓN DE CLIENTE (OBLIGATORIO) */}
                 <div style={{ background: '#eff6ff', padding: '15px', borderRadius: '12px', border: '1px dashed #60a5fa' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px', fontWeight: '800', fontSize: '0.9rem', color: 'var(--primary-dark)' }}><Building size={16}/> Cliente (Empresa) *</label>
                     <SearchableSelect 
@@ -278,7 +282,6 @@ export default function AdminPasajeros() {
                     />
                 </div>
 
-                {/* 2. VINCULACIÓN A USUARIO EXISTENTE (NUEVO) */}
                 <div style={{ background: '#f0fdf4', padding: '15px', borderRadius: '12px', border: '1px dashed #4ade80' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px', fontWeight: '800', fontSize: '0.9rem', color: '#15803d' }}><UserCheck size={16}/> Vincular a Usuario Web (Opcional)</label>
                     <SearchableSelect 
@@ -287,11 +290,9 @@ export default function AdminPasajeros() {
                         onChange={(val) => setForm({...form, idUsuario: val})}
                         placeholder="Buscar Usuario Login..."
                     />
-                    <p style={{fontSize:'0.75rem', color:'#15803d', margin:'5px 0 0'}}>* Si seleccionas un usuario, este pasajero aparecerá en su cuenta automáticamente.</p>
                 </div>
                 
                 <SectionTitle icon={<User size={16}/>} title="Datos Personales" />
-                {/* AQUI ESTA EL CAMBIO: Grid Responsiva */}
                 <div className="grid-responsive-2">
                     <div><Label>Nombre(s) *</Label><input required type="text" value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} style={inputStyle} /></div><div><Label>Apellido Paterno *</Label><input required type="text" value={form.apellidoP} onChange={e => setForm({...form, apellidoP: e.target.value})} style={inputStyle} /></div><div><Label>Apellido Materno</Label><input type="text" value={form.apellidoM} onChange={e => setForm({...form, apellidoM: e.target.value})} style={inputStyle} /></div><div><Label>Fecha Nacimiento</Label><input type="date" value={form.fechaNacimiento} onChange={e => setForm({...form, fechaNacimiento: e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><Label>Nacionalidad</Label><select value={form.nacionalidad} onChange={e => setForm({...form, nacionalidad: e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{nacionalidades.map((n, idx) => <option key={idx} value={n.id}>{n.nombre}</option>)}</select></div>
                 </div>
@@ -307,11 +308,45 @@ export default function AdminPasajeros() {
                 </div>
                 
                 <SectionTitle icon={<Phone size={16}/>} title="Contacto" />
-                <div className="grid-responsive-2">
-                    <div><Label>Lada</Label><input type="text" placeholder="Ej. 52" value={form.lada} onChange={e => setForm({...form, lada: e.target.value})} style={inputStyle} /></div><div><Label>Teléfono</Label><input type="tel" value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})} style={inputStyle} /></div><div style={{ gridColumn: '1 / -1' }}><Label>Correo</Label><input type="email" value={form.correo} onChange={e => setForm({...form, correo: e.target.value})} style={inputStyle} /></div>
+                
+                {/* SECCIÓN TELÉFONOS MULTIPLES */}
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', gridColumn: '1 / -1' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <Label>Teléfonos</Label>
+                        <button type="button" onClick={addPhone} style={{ background: 'white', border: '1px solid #cbd5e1', cursor: 'pointer', borderRadius: '20px', padding: '4px 10px', fontSize: '0.75rem', fontWeight: '700', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}><Plus size={14}/> Agregar</button>
+                    </div>
+                    {form.telefonos.map((tel, idx) => (
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '100px 80px 1fr 30px', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
+                            <div style={{marginBottom:0}}>
+                                {idx === 0 && <label style={{fontSize:'0.75rem', marginBottom:'2px', display:'block', color:'#64748b'}}>Tipo</label>}
+                                <select value={tel.tipo} onChange={e => handlePhoneChange(idx, 'tipo', e.target.value)} style={{...inputStyle, padding:'8px'}}>
+                                    <option value="Móvil">Móvil</option>
+                                    <option value="Oficina">Oficina</option>
+                                    <option value="Casa">Casa</option>
+                                </select>
+                            </div>
+                            <div style={{marginBottom:0}}>
+                                {idx === 0 && <label style={{fontSize:'0.75rem', marginBottom:'2px', display:'block', color:'#64748b'}}>Lada</label>}
+                                <input type="text" value={tel.lada} onChange={e => handlePhoneChange(idx, 'lada', e.target.value)} style={{...inputStyle, padding:'8px'}} placeholder="52"/>
+                            </div>
+                            <div style={{marginBottom:0}}>
+                                {idx === 0 && <label style={{fontSize:'0.75rem', marginBottom:'2px', display:'block', color:'#64748b'}}>Número</label>}
+                                <input type="tel" value={tel.numero} onChange={e => handlePhoneChange(idx, 'numero', e.target.value)} style={{...inputStyle, padding:'8px'}} placeholder="10 dígitos"/>
+                            </div>
+                            {form.telefonos.length > 1 && (
+                                <button type="button" onClick={() => removePhone(idx)} style={{ background: '#fee2e2', border: 'none', borderRadius: '8px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#dc2626', marginBottom: '2px' }}><Trash2 size={16}/></button>
+                            )}
+                        </div>
+                    ))}
                 </div>
-                <div style={{ marginTop: '20px' }}><button type="submit" className="btn-primary" disabled={procesando}>{procesando ? 'Guardando...' : 'Guardar Pasajero'}</button></div>
+
+                <div style={{ gridColumn: '1 / -1' }}><Label>Correo</Label><input type="email" value={form.correo} onChange={e => setForm({...form, correo: e.target.value})} style={inputStyle} /></div>
               </form>
+            </div>
+
+            {/* Footer Fijo del Modal */}
+            <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
+                <button type="submit" form="pasajeroForm" className="btn-primary" disabled={procesando}>{procesando ? 'Guardando...' : 'Guardar Pasajero'}</button>
             </div>
           </div>
         </div>

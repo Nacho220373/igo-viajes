@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { enviarPeticion } from '../../services/api';
 import { 
   Map, Calendar, ArrowRightCircle, Plane, Smile, Ticket, Clock, Hotel, Car, Utensils, 
-  LayoutGrid, LayoutList, Settings, User, FileText, MapPin, Phone, Save, X, Flag, CreditCard, Mail,
-  CheckCircle, AlertCircle, Star, MessageSquare, AlertTriangle, Ban
+  LayoutGrid, LayoutList, Settings, User, FileText, MapPin, Phone, Save, X, CheckCircle, AlertCircle, Star, MessageSquare, AlertTriangle, Ban
 } from 'lucide-react';
 
 export default function PassengerDashboard({ user }) {
@@ -35,7 +34,7 @@ export default function PassengerDashboard({ user }) {
   // Modal Calificación
   const [ratingModal, setRatingModal] = useState({ show: false, type: '', id: '', titulo: '', readOnly: false, initialRating: 0, initialComment: '' });
   
-  // Modal Reporte (No Realizado) - AHORA CON ESTADO 'PROCESANDO'
+  // Modal Reporte (No Realizado)
   const [reportModal, setReportModal] = useState({ show: false, id: '', titulo: '', procesando: false });
 
   // Estados Alerta Personalizada
@@ -176,7 +175,6 @@ export default function PassengerDashboard({ user }) {
   };
 
   const guardarCalificacion = async (datos) => {
-      // Activar loader en el modal correspondiente
       if (datos.noRealizado) {
           setReportModal(prev => ({...prev, procesando: true}));
       } else {
@@ -185,9 +183,7 @@ export default function PassengerDashboard({ user }) {
       
       const accion = (ratingModal.show && ratingModal.type === 'viaje') ? 'calificarViaje' : 'calificarServicio';
       
-      // ID: Puede venir del ratingModal (estrellas) o reportModal (cancelación)
       const idTarget = datos.noRealizado ? reportModal.id : ratingModal.id;
-
       const estatus = datos.noRealizado ? 3 : 2;
       const calificacionFinal = datos.noRealizado ? 0 : datos.rating;
 
@@ -204,7 +200,6 @@ export default function PassengerDashboard({ user }) {
       if (res.exito) {
           showAlert("¡Gracias!", "Tu respuesta ha sido registrada.", "success");
           
-          // Limpiar y cerrar ambos modales
           setRatingModal({ show: false, type: '', id: '', titulo: '', readOnly: false, initialRating: 0, initialComment: '', procesando: false });
           setReportModal({ show: false, id: '', titulo: '', procesando: false });
           
@@ -222,7 +217,6 @@ export default function PassengerDashboard({ user }) {
           }
       } else {
           showAlert("Error", res.error || "No se pudo registrar.", "error");
-          // Desactivar loaders
           setRatingModal(prev => ({...prev, procesando: false}));
           setReportModal(prev => ({...prev, procesando: false}));
       }
@@ -251,14 +245,9 @@ export default function PassengerDashboard({ user }) {
       gap: '20px'
   });
 
-  // FILTRO INTELIGENTE PARA LA AGENDA
   const serviciosAgenda = serviciosEnCurso.filter(s => {
-      // 1. Si ya se calificó -> OCULTAR
       if (s.calificacion) return false;
-      
-      // 2. Si se marcó como "No Realizado" (Estatus 3) -> OCULTAR
       if (s.estatusId == 3) return false;
-      
       return true;
   });
 
@@ -266,7 +255,6 @@ export default function PassengerDashboard({ user }) {
 
   return (
     <div className="dashboard-container">
-      
       {/* HEADER */}
       <div style={{ marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
         <div>
@@ -327,9 +315,7 @@ export default function PassengerDashboard({ user }) {
                             ) : (
                                 <div style={{ display: 'grid', gap: '15px' }}>
                                     {serviciosAgenda.map((s, idx) => {
-                                        // Verificar si el servicio ya terminó
                                         const hasEnded = s.fechaFinISO && new Date() > new Date(s.fechaFinISO);
-                                        
                                         return (
                                             <div key={idx} style={{ background: 'white', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
                                                 <div style={{ background: '#f1f5f9', padding: '12px', borderRadius: '12px', color: 'var(--primary)' }}>{getIconoServicio(s.categoriaId)}</div>
@@ -339,10 +325,7 @@ export default function PassengerDashboard({ user }) {
                                                         <span style={{display:'flex', alignItems:'center', gap:'5px', fontWeight:'600'}}><Clock size={12}/> {s.fechaInicio}</span>
                                                     </div>
                                                 </div>
-                                                
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                                                    
-                                                    {/* 1. BOTÓN CALIFICAR (Solo si terminó) */}
                                                     {hasEnded && !s.calificacion && (
                                                         <button 
                                                             onClick={() => abrirCalificar('servicio', s.idServicio, `${s.destino}`)}
@@ -351,10 +334,7 @@ export default function PassengerDashboard({ user }) {
                                                             <Star size={14}/> Calificar
                                                         </button>
                                                     )}
-
-                                                    {/* 2. FILA DE ESTADO + REPORTE (Abajo) */}
                                                     <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                                                        {/* Botón Reportar (Siempre visible si no reportado) */}
                                                         <button 
                                                             onClick={() => setReportModal({show: true, id: s.idServicio, titulo: s.destino})}
                                                             style={{ background: 'transparent', color: '#64748b', border: 'none', padding: '4px 8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'underline' }}
@@ -362,8 +342,6 @@ export default function PassengerDashboard({ user }) {
                                                         >
                                                             <Ban size={12}/> Cancelar/No realizado
                                                         </button>
-
-                                                        {/* Badge de Estado */}
                                                         <div style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '8px', background: '#ecfdf5', color: '#10b981', fontWeight: '700', border: '1px solid #d1fae5', width:'fit-content' }}>
                                                             Activo
                                                         </div>
@@ -447,21 +425,21 @@ export default function PassengerDashboard({ user }) {
           />
       )}
 
-      {/* --- MODAL REPORTE (NO REALIZADO) - CON FEEDBACK --- */}
+      {/* --- MODAL REPORTE (NO REALIZADO) --- */}
       {reportModal.show && (
           <ReportModal 
             isOpen={reportModal.show}
             onClose={() => setReportModal({ show: false, id: '', titulo: '' })}
             onSave={(comentario) => guardarCalificacion({ noRealizado: true, comentario, rating: 0 })}
             titulo={reportModal.titulo}
-            procesando={reportModal.procesando} // PASAMOS EL ESTADO DE CARGA
+            procesando={reportModal.procesando}
           />
       )}
 
       {/* --- MODAL MI PERFIL --- */}
       {showProfileModal && (
         <div style={modalOverlayStyle}>
-            <div style={{...modalContentStyle, maxWidth:'600px', maxHeight:'90vh', overflowY:'auto'}}>
+            <div style={{...modalContentStyle, maxWidth:'600px', maxHeight:'calc(100dvh - 40px)', overflowY:'auto'}}>
                 <div style={{padding:'20px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between', position:'sticky', top:0, background:'white', zIndex:10}}>
                     <h3 style={{margin:0}}>Mi Perfil</h3>
                     <button onClick={()=>setShowProfileModal(false)} style={closeBtnStyle}><X size={18}/></button>
@@ -502,12 +480,9 @@ export default function PassengerDashboard({ user }) {
   );
 }
 
-// === MODAL REPORTE (NUEVO - CON FEEDBACK) ===
 const ReportModal = ({ isOpen, onClose, onSave, titulo, procesando }) => {
     const [comentario, setComentario] = useState('');
-    
     if (!isOpen) return null;
-
     return (
         <div style={modalOverlayStyle}>
             <div style={{...modalContentStyle, maxWidth: '400px', overflowY:'visible', animation: 'popIn 0.3s'}}>
@@ -538,7 +513,6 @@ const ReportModal = ({ isOpen, onClose, onSave, titulo, procesando }) => {
     );
 };
 
-// === COMPONENTE CALIFICACIÓN ===
 const RatingModal = ({ isOpen, onClose, onSave, titulo, tipo, procesando, opciones = [], readOnly = false, initialRating = 0, initialComment = '' }) => {
     const maxRating = opciones.length > 0 ? Math.max(...opciones) : 5.0;
     const [rating, setRating] = useState(readOnly ? initialRating : maxRating); 
@@ -618,8 +592,6 @@ const RatingModal = ({ isOpen, onClose, onSave, titulo, tipo, procesando, opcion
     );
 };
 
-// === COMPONENTES AUXILIARES ===
-
 const SectionLabel = ({ icon, title, style }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px', ...style }}>
       <div style={{ color: 'var(--primary-light)' }}>{icon}</div>
@@ -678,8 +650,9 @@ const ViajeCardSimple = ({ viaje, navigate, historial, viewMode = 'grid', onRate
 };
 
 const emptyStateStyle = { background: 'white', borderRadius: '16px', padding: '40px', textAlign: 'center', color: '#94a3b8', border: '2px dashed #e2e8f0', fontSize: '0.95rem', fontWeight: '600' };
+// CAMBIO IMPORTANTE: Modal Style con calc(100dvh - 40px)
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px', backdropFilter: 'blur(4px)' };
-const modalContentStyle = { background: 'white', borderRadius: '24px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' };
+const modalContentStyle = { background: 'white', borderRadius: '24px', width: '100%', maxWidth: '500px', maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' };
 const closeBtnStyle = { background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' };
 const inputStyle = { width: '100%', padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', boxSizing: 'border-box', fontSize: '1rem' };
 const labelStyle = { display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '700', color: '#64748b' };
