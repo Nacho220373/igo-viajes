@@ -9,7 +9,7 @@ import {
   LogOut, Map as MapIcon, User as UserIcon, Calendar, ArrowRightCircle, LayoutGrid, List, Search, X, 
   Users, UserCheck, Plane, Briefcase, TrendingUp, TrendingDown, Wallet, Bell, DollarSign, Clock, 
   Plus, ChevronDown, ChevronUp, FileText, Download, Printer, Tag, Hotel, Car, Utensils, Ticket,
-  CheckSquare, Square, AlertCircle, CheckCircle, AlertTriangle, Calculator, Building, PieChart
+  CheckSquare, Square, AlertCircle, CheckCircle, AlertTriangle, Calculator, Building, PieChart, CreditCard
 } from 'lucide-react';
 
 export default function AdminDashboardContent() {
@@ -27,13 +27,13 @@ export default function AdminDashboardContent() {
   const [showModalTransaccion, setShowModalTransaccion] = useState(false);
   const [showModalSelectorEdoCta, setShowModalSelectorEdoCta] = useState(false);
   const [showModalReporte, setShowModalReporte] = useState(false);
+  const [showModalAddCuenta, setShowModalAddCuenta] = useState(false); // NUEVO
 
   // ALERTA
   const [customAlert, setCustomAlert] = useState({ show: false, title: '', msg: '', type: 'info' });
 
   // ESTADOS ESTADO DE CUENTA
   const [edoCtaFiltro, setEdoCtaFiltro] = useState({ idCliente: '', idViaje: '', fechaInicio: '', fechaFin: '' });
-  // CAMBIO: Estructura unificada de reporte (movimientos: cargo/abono)
   const [edoCtaData, setEdoCtaData] = useState({ movimientos: [], cliente: null, resumen: {cargos:0, abonos:0, saldo:0}, esGeneral: false, esAgencia: false });
   const [loadingReporte, setLoadingReporte] = useState(false);
   const [generandoPDF, setGenerandoPDF] = useState(false);
@@ -50,6 +50,9 @@ export default function AdminDashboardContent() {
     fecha: new Date().toISOString().split('T')[0] 
   };
   const [formTransaccion, setFormTransaccion] = useState(formTransaccionInicial);
+  
+  // FORMULARIO NUEVA CUENTA (ACTUALIZADO A COLUMNAS REALES)
+  const [formCuenta, setFormCuenta] = useState({ nombre: '', tipo: 'Banco', banco: '', cuenta: '' });
   
   // LISTAS Y CATÁLOGOS
   const [listasFinancieras, setListasFinancieras] = useState({ formasPago: [], monedas: [], tipos: [], cuentasEmpresa: [] });
@@ -93,7 +96,6 @@ export default function AdminDashboardContent() {
             enviarPeticion({ accion: 'obtenerListas' })
         ]);
         if(resListasFin.exito) {
-            // FIX ROBUSTO: Si monedas viene vacío, inyectar defaults
             const monedasSeguras = (resListasFin.listas.monedas && resListasFin.listas.monedas.length > 0) 
                 ? resListasFin.listas.monedas 
                 : [{id: '1', nombre: 'MXN'}, {id: '2', nombre: 'USD'}, {id: '3', nombre: 'EUR'}];
@@ -221,7 +223,6 @@ export default function AdminDashboardContent() {
       });
 
       if (res.exito) {
-          // Filtros de fecha locales
           let movs = res.datos;
           if (edoCtaFiltro.fechaInicio) {
               const fi = new Date(edoCtaFiltro.fechaInicio); fi.setHours(0,0,0,0);
@@ -232,7 +233,6 @@ export default function AdminDashboardContent() {
               movs = movs.filter(m => { const d = parseFechaLocal(m.fecha); return d && d <= ff; });
           }
 
-          // Recalcular resumen
           let cargos = 0, abonos = 0;
           movs.forEach(m => { cargos += m.cargo; abonos += m.abono; });
 
@@ -241,7 +241,7 @@ export default function AdminDashboardContent() {
               cliente: res.cliente,
               resumen: { cargos, abonos, saldo: cargos - abonos },
               esGeneral: res.esGeneral,
-              esAgencia: edoCtaFiltro.idCliente === "AGENCY_INTERNAL" // Flag para UI
+              esAgencia: edoCtaFiltro.idCliente === "AGENCY_INTERNAL" 
           });
           setShowModalSelectorEdoCta(false);
           setShowModalReporte(true);
@@ -257,7 +257,6 @@ export default function AdminDashboardContent() {
     const tituloReporte = edoCtaData.esAgencia ? "REPORTE FINANCIERO AGENCIA" : "ESTADO DE CUENTA";
     const extraHeader = (edoCtaData.esGeneral || edoCtaData.esAgencia) ? '<th style="background:#1e3a8a;color:white;">Cliente / Prov</th>' : '';
     
-    // Labels dinámicos según tipo de reporte
     const labelCargo = edoCtaData.esAgencia ? "Egresos (Pagos a Prov)" : "Cargos";
     const labelAbono = edoCtaData.esAgencia ? "Ingresos (Cobros)" : "Abonos";
     const labelSaldo = edoCtaData.esAgencia ? "Flujo Neto" : "Saldo";
@@ -270,11 +269,10 @@ export default function AdminDashboardContent() {
     `;
     let saldo = 0;
     edoCtaData.movimientos.forEach(m => {
-        // Logica de saldo visual para agencia: Ingresos - Egresos
         if (edoCtaData.esAgencia) {
-             saldo += (m.abono - m.cargo); // Abono son Ingresos, Cargo son Egresos en este contexto visual
+             saldo += (m.abono - m.cargo); 
         } else {
-             saldo += (m.cargo - m.abono); // Logica de deuda cliente
+             saldo += (m.cargo - m.abono); 
         }
         
         const cliCell = (edoCtaData.esGeneral || edoCtaData.esAgencia) ? `<td>${m.nombreCliente || ''}</td>` : '';
@@ -295,7 +293,6 @@ export default function AdminDashboardContent() {
 
   const handleGuardarTransaccion = async (e) => {
       e.preventDefault();
-      // CAMBIO 2: Cliente solo obligatorio si NO es Egreso (Tipo 2)
       if (formTransaccion.tipo !== '2' && !formTransaccion.idCliente) {
           return showAlert("Faltan datos", "Selecciona un cliente para este ingreso", "warning");
       }
@@ -326,6 +323,32 @@ export default function AdminDashboardContent() {
           showAlert("Éxito", "Movimiento registrado correctamente", "success");
       } else {
           showAlert("Error", "Error: " + respuesta.error, "error");
+      }
+      setProcesando(false);
+  };
+
+  // NUEVA FUNCION: GUARDAR CUENTA COMPLETA
+  const handleGuardarCuenta = async (e) => {
+      e.preventDefault();
+      if (!formCuenta.nombre) return showAlert("Error", "El nombre identificador es obligatorio");
+      setProcesando(true);
+      
+      // Enviamos el objeto completo coincidiendo con las columnas del Sheet
+      const res = await enviarPeticion({ 
+          accion: 'agregarCuentaEmpresa', 
+          nombre: formCuenta.nombre, // Alias
+          tipo: formCuenta.tipo,     
+          banco: formCuenta.banco,   // Nombre del banco
+          cuenta: formCuenta.cuenta  // Número de cuenta
+      });
+
+      if (res.exito) {
+          setShowModalAddCuenta(false);
+          setFormCuenta({ nombre: '', tipo: 'Banco', banco: '', cuenta: '' });
+          await cargarListasCompletas(); 
+          showAlert("Éxito", "Cuenta agregada correctamente", "success");
+      } else {
+          showAlert("Error", res.error);
       }
       setProcesando(false);
   };
@@ -393,6 +416,125 @@ export default function AdminDashboardContent() {
                     </div>
                 </div>
               </>
+          )}
+
+          {/* MODAL TRANSACCION */}
+          {showModalTransaccion && (
+              <div style={modalOverlayStyle}>
+                  <div style={{...modalContentStyle, maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column'}}> 
+                      <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Registrar Movimiento</h2>
+                          <button onClick={() => setShowModalTransaccion(false)} style={closeBtnStyle}><X size={18}/></button>
+                      </div>
+                      <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                          <form id="form-transaccion" onSubmit={handleGuardarTransaccion} style={{ display: 'grid', gap: '15px' }}>
+                              <div style={{background:'#f1f5f9', padding:'10px', borderRadius:'10px', display:'flex', gap:'10px'}}>
+                                  <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='1'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='1'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="1" checked={formTransaccion.tipo=='1'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Ingreso</label>
+                                  <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='2'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='2'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="2" checked={formTransaccion.tipo=='2'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Egreso</label>
+                                  <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='3'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='3'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="3" checked={formTransaccion.tipo=='3'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Abono</label>
+                              </div>
+                              <div className="grid-responsive-2">
+                                  <div><label style={labelStyle}>{aplicaIVA ? 'Importe / Subtotal' : 'Monto'}</label><input required type="number" step="0.01" value={formTransaccion.monto} onChange={e=>setFormTransaccion({...formTransaccion, monto:e.target.value})} style={inputStyle} placeholder="0.00" /></div>
+                                  <div>
+                                      <label style={labelStyle}>Moneda</label>
+                                      <select 
+                                        value={formTransaccion.moneda} 
+                                        onChange={e=>setFormTransaccion({...formTransaccion, moneda:e.target.value})} 
+                                        style={inputStyle}
+                                      >
+                                        {listasFinancieras.monedas && listasFinancieras.monedas.length > 0 
+                                            ? listasFinancieras.monedas.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)
+                                            : (<><option value="1">MXN</option><option value="2">USD</option></>)
+                                        }
+                                      </select>
+                                  </div>
+                              </div>
+                              <div style={{ background: aplicaIVA ? '#f0fdf4' : 'transparent', padding: aplicaIVA ? '10px' : '0', borderRadius: '10px', border: aplicaIVA ? '1px dashed #bbf7d0' : 'none' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: aplicaIVA ? '10px' : '0', fontSize:'0.9rem', fontWeight:'600', color:'#334155' }}><input type="checkbox" checked={aplicaIVA} onChange={e => setAplicaIVA(e.target.checked)} style={{width:'18px', height:'18px'}} /> ¿Más IVA? (Sumar Impuestos)</label>
+                                {aplicaIVA && (<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', animation:'fadeIn 0.3s' }}><div><label style={{fontSize:'0.75rem', fontWeight:'700', color:'#64748b'}}>Tasa IVA (%)</label><input type="number" value={tasaIVA} onChange={e=>setTasaIVA(e.target.value)} style={{...inputStyle, padding:'8px'}} /></div><div><label style={{fontSize:'0.75rem', fontWeight:'700', color:'#64748b'}}>Monto IVA</label><div style={{...inputStyle, padding:'8px', background:'#e2e8f0', color:'#64748b'}}>${calcIVA.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div></div>)}
+                              </div>
+                              {aplicaIVA && (<div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'#ecfdf5', padding:'10px 15px', borderRadius:'10px', color:'#065f46', fontWeight:'800', border:'1px solid #a7f3d0' }}><span>Total Final:</span><span style={{fontSize:'1.1rem'}}>${calcTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>)}
+                              
+                              <div className={formTransaccion.tipo === '2' ? 'fade-in' : ''}>
+                                  <label style={labelStyle}>Cliente {formTransaccion.tipo !== '2' && '*'}</label>
+                                  <SearchableSelect 
+                                    options={dashboardData?.listasRapidas?.clientes}
+                                    value={formTransaccion.idCliente}
+                                    onChange={(val) => setFormTransaccion({...formTransaccion, idCliente: val, idViaje: ''})}
+                                    placeholder={formTransaccion.tipo === '2' ? "(Opcional) Asociar a cliente" : "Seleccionar Cliente..."}
+                                    required={formTransaccion.tipo !== '2'}
+                                  />
+                              </div>
+
+                              <div className="grid-responsive-2"><div><label style={labelStyle}>Concepto</label><input required type="text" value={formTransaccion.concepto} onChange={e=>setFormTransaccion({...formTransaccion, concepto:e.target.value})} style={inputStyle} placeholder="Ej. Depósito inicial" /></div><div><label style={labelStyle}>No. Factura (Opcional)</label><input type="text" value={formTransaccion.noFactura} onChange={e=>setFormTransaccion({...formTransaccion, noFactura:e.target.value})} style={inputStyle} placeholder="Ej. F-12345" /></div></div>
+                              <label style={labelStyle}>Forma de Pago</label><select value={formTransaccion.formaPago} onChange={e=>setFormTransaccion({...formTransaccion, formaPago:e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{listasFinancieras.formasPago.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}</select>
+                              
+                              {formTransaccion.tipo == '2' && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                    <div>
+                                        <label style={labelStyle}>Proveedor (Para Gasto)</label>
+                                        <SearchableSelect options={listaProveedores} value={formTransaccion.idProveedor} onChange={(val) => setFormTransaccion({...formTransaccion, idProveedor: val})} placeholder="Buscar Proveedor..." />
+                                    </div>
+                                    <div>
+                                        <label style={{...labelStyle, color: '#0369a1', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                            <span>Cuenta de Retiro</span>
+                                            <button type="button" onClick={() => setShowModalAddCuenta(true)} style={{border:'none', background:'transparent', color:'#0ea5e9', cursor:'pointer', fontWeight:'bold', fontSize:'1.2rem'}}>+</button>
+                                        </label>
+                                        <select value={formTransaccion.idCuentaEmpresa} onChange={e => setFormTransaccion({...formTransaccion, idCuentaEmpresa: e.target.value})} style={{...inputStyle, borderColor: '#0ea5e9', background: '#f0f9ff'}}>
+                                            <option value="">-- Seleccionar Origen --</option>
+                                            {listasFinancieras.cuentasEmpresa.map(c => (<option key={c.id} value={c.id}>{c.nombre}</option>))}
+                                        </select>
+                                    </div>
+                                </div>
+                              )}
+
+                              <div style={{background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '10px'}}><label style={{...labelStyle, color:'var(--primary)'}}>Asociar a Viaje (Opcional)</label><div style={{marginBottom:'10px'}}><SearchableSelect options={dashboardData?.listasRapidas?.viajes.filter(v => !formTransaccion.idCliente || v.idCliente == formTransaccion.idCliente)} value={formTransaccion.idViaje} onChange={(val) => setFormTransaccion({...formTransaccion, idViaje: val})} placeholder={formTransaccion.idCliente ? "Buscar viaje del cliente..." : "Selecciona un cliente primero"} disabled={!formTransaccion.idCliente} /></div>{formTransaccion.idViaje && (<><label style={{...labelStyle, marginTop:'10px'}}>Asociar a Servicios (El costo se dividirá)</label><div style={{ maxHeight: '200px', overflowY: 'auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding:'5px' }}>{gruposServicios.length === 0 && <div style={{padding:'15px', textAlign:'center', color:'#94a3b8', fontSize:'0.85rem'}}>No hay servicios pendientes en este viaje.</div>}{gruposServicios.map(grupo => { const nomCat = getNombreCategoria(grupo.servicioBase.categoriaId); const all = grupo.ids.every(id => selectedServiciosFinanza.includes(id)); const some = grupo.ids.some(id => selectedServiciosFinanza.includes(id)); return (<div key={grupo.key} onClick={() => toggleGrupoServicios(grupo.ids)} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: some ? '#eff6ff' : 'transparent' }}><div style={{color: all ? 'var(--primary)' : (some ? 'var(--primary-light)' : '#cbd5e1')}}>{all ? <CheckSquare size={18}/> : (some ? <div style={{width:18, height:18, background:'var(--primary-light)', borderRadius:4}}></div> : <Square size={18}/>)}</div><div style={{ flex:1 }}><div style={{fontSize:'0.85rem', fontWeight:'600', color: some ? 'var(--primary-dark)' : '#334155'}}>{nomCat} - {grupo.servicioBase.destino}{grupo.cantidad > 1 && <span style={{marginLeft:'8px', background:'#e0f2fe', color:'#0284c7', padding:'2px 6px', borderRadius:'10px', fontSize:'0.7rem'}}>x{grupo.cantidad}</span>}</div><div style={{fontSize:'0.75rem', color:'#64748b'}}>{grupo.cantidad > 1 ? (<div style={{display:'flex', alignItems:'center', gap:'4px'}}><Users size={12}/> {grupo.pasajerosStr}</div>) : (grupo.servicioBase.nombrePasajero)}</div></div></div>); })}</div></>)}</div><div style={{ height: '50px', flexShrink: 0 }}></div>
+                          </form>
+                      </div>
+                      <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
+                          <button type="submit" form="form-transaccion" className="btn-primary" disabled={procesando}>{procesando ? '...' : 'Registrar'}</button>
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {/* MODAL AGREGAR CUENTA (ACTUALIZADO A 4 COLUMNAS) */}
+          {showModalAddCuenta && (
+              <div style={modalOverlayStyle}>
+                  <div style={{...modalContentStyle, maxWidth:'450px', height:'auto', overflow:'visible'}}>
+                      <div style={{padding:'20px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between'}}>
+                          <h3 style={{margin:0}}>Nueva Cuenta</h3>
+                          <button onClick={()=>setShowModalAddCuenta(false)} style={closeBtnStyle}><X size={18}/></button>
+                      </div>
+                      <div style={{padding:'25px'}}>
+                          <form onSubmit={handleGuardarCuenta}>
+                              <div style={{marginBottom:'15px'}}>
+                                  <label style={labelStyle}>Alias / Identificador *</label>
+                                  <input required type="text" value={formCuenta.nombre} onChange={e=>setFormCuenta({...formCuenta, nombre:e.target.value})} style={inputStyle} placeholder="Ej. Caja Principal, BBVA Nómina"/>
+                              </div>
+                              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}>
+                                  <div>
+                                      <label style={labelStyle}>Tipo</label>
+                                      <select value={formCuenta.tipo} onChange={e=>setFormCuenta({...formCuenta, tipo:e.target.value})} style={inputStyle}>
+                                          <option value="Banco">Banco</option>
+                                          <option value="Caja Chica">Caja Chica</option>
+                                          <option value="Tarjeta Crédito">Tarjeta Crédito</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label style={labelStyle}>Banco (Institución)</label>
+                                      <input type="text" value={formCuenta.banco} onChange={e=>setFormCuenta({...formCuenta, banco:e.target.value})} style={inputStyle} placeholder="Ej. BBVA, Santander"/>
+                                  </div>
+                              </div>
+                              <div style={{marginBottom:'25px'}}>
+                                  <label style={labelStyle}>No. Cuenta / CLABE / Tarjeta</label>
+                                  <input type="text" value={formCuenta.cuenta} onChange={e=>setFormCuenta({...formCuenta, cuenta:e.target.value})} style={inputStyle} placeholder="Ej. 1234567890"/>
+                              </div>
+                              <button type="submit" className="btn-primary" disabled={procesando}>{procesando ? 'Guardando...' : 'Crear Cuenta'}</button>
+                          </form>
+                      </div>
+                  </div>
+              </div>
           )}
 
           {showModalSelectorEdoCta && (
@@ -521,71 +663,6 @@ export default function AdminDashboardContent() {
             </div>
           )}
 
-          {showModalTransaccion && (
-              <div style={modalOverlayStyle}>
-                  <div style={{...modalContentStyle, maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column'}}> 
-                      <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Registrar Movimiento</h2>
-                          <button onClick={() => setShowModalTransaccion(false)} style={closeBtnStyle}><X size={18}/></button>
-                      </div>
-                      <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-                          <form id="form-transaccion" onSubmit={handleGuardarTransaccion} style={{ display: 'grid', gap: '15px' }}>
-                              <div style={{background:'#f1f5f9', padding:'10px', borderRadius:'10px', display:'flex', gap:'10px'}}>
-                                  <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='1'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='1'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="1" checked={formTransaccion.tipo=='1'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Ingreso</label>
-                                  <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='2'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='2'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="2" checked={formTransaccion.tipo=='2'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Egreso</label>
-                                  <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formTransaccion.tipo=='3'?'white':'transparent', fontWeight:'700', boxShadow: formTransaccion.tipo=='3'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="3" checked={formTransaccion.tipo=='3'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Abono</label>
-                              </div>
-                              <div className="grid-responsive-2">
-                                  <div><label style={labelStyle}>{aplicaIVA ? 'Importe / Subtotal' : 'Monto'}</label><input required type="number" step="0.01" value={formTransaccion.monto} onChange={e=>setFormTransaccion({...formTransaccion, monto:e.target.value})} style={inputStyle} placeholder="0.00" /></div>
-                                  <div>
-                                      <label style={labelStyle}>Moneda</label>
-                                      <select 
-                                        value={formTransaccion.moneda} 
-                                        onChange={e=>setFormTransaccion({...formTransaccion, moneda:e.target.value})} 
-                                        style={inputStyle}
-                                      >
-                                        {/* FIX: Si está vacío, mostrar al menos estos */}
-                                        {listasFinancieras.monedas && listasFinancieras.monedas.length > 0 
-                                            ? listasFinancieras.monedas.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)
-                                            : (
-                                                <>
-                                                    <option value="1">MXN</option>
-                                                    <option value="2">USD</option>
-                                                </>
-                                            )
-                                        }
-                                      </select>
-                                  </div>
-                              </div>
-                              <div style={{ background: aplicaIVA ? '#f0fdf4' : 'transparent', padding: aplicaIVA ? '10px' : '0', borderRadius: '10px', border: aplicaIVA ? '1px dashed #bbf7d0' : 'none' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: aplicaIVA ? '10px' : '0', fontSize:'0.9rem', fontWeight:'600', color:'#334155' }}><input type="checkbox" checked={aplicaIVA} onChange={e => setAplicaIVA(e.target.checked)} style={{width:'18px', height:'18px'}} /> ¿Más IVA? (Sumar Impuestos)</label>
-                                {aplicaIVA && (<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', animation:'fadeIn 0.3s' }}><div><label style={{fontSize:'0.75rem', fontWeight:'700', color:'#64748b'}}>Tasa IVA (%)</label><input type="number" value={tasaIVA} onChange={e=>setTasaIVA(e.target.value)} style={{...inputStyle, padding:'8px'}} /></div><div><label style={{fontSize:'0.75rem', fontWeight:'700', color:'#64748b'}}>Monto IVA</label><div style={{...inputStyle, padding:'8px', background:'#e2e8f0', color:'#64748b'}}>${calcIVA.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div></div>)}
-                              </div>
-                              {aplicaIVA && (<div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'#ecfdf5', padding:'10px 15px', borderRadius:'10px', color:'#065f46', fontWeight:'800', border:'1px solid #a7f3d0' }}><span>Total Final:</span><span style={{fontSize:'1.1rem'}}>${calcTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>)}
-                              
-                              <div className={formTransaccion.tipo === '2' ? 'fade-in' : ''}>
-                                  <label style={labelStyle}>Cliente {formTransaccion.tipo !== '2' && '*'}</label>
-                                  <SearchableSelect 
-                                    options={dashboardData?.listasRapidas?.clientes}
-                                    value={formTransaccion.idCliente}
-                                    onChange={(val) => setFormTransaccion({...formTransaccion, idCliente: val, idViaje: ''})}
-                                    placeholder={formTransaccion.tipo === '2' ? "(Opcional) Asociar a cliente" : "Seleccionar Cliente..."}
-                                    required={formTransaccion.tipo !== '2'}
-                                  />
-                              </div>
-
-                              <div className="grid-responsive-2"><div><label style={labelStyle}>Concepto</label><input required type="text" value={formTransaccion.concepto} onChange={e=>setFormTransaccion({...formTransaccion, concepto:e.target.value})} style={inputStyle} placeholder="Ej. Depósito inicial" /></div><div><label style={labelStyle}>No. Factura (Opcional)</label><input type="text" value={formTransaccion.noFactura} onChange={e=>setFormTransaccion({...formTransaccion, noFactura:e.target.value})} style={inputStyle} placeholder="Ej. F-12345" /></div></div>
-                              <label style={labelStyle}>Forma de Pago</label><select value={formTransaccion.formaPago} onChange={e=>setFormTransaccion({...formTransaccion, formaPago:e.target.value})} style={inputStyle}><option value="">-- Seleccionar --</option>{listasFinancieras.formasPago.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}</select>
-                              {formTransaccion.tipo == '2' && (<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={labelStyle}>Proveedor (Para Gasto)</label><SearchableSelect options={listaProveedores} value={formTransaccion.idProveedor} onChange={(val) => setFormTransaccion({...formTransaccion, idProveedor: val})} placeholder="Buscar Proveedor..." /></div><div><label style={{...labelStyle, color: '#0369a1'}}>Cuenta de Retiro / Tarjeta</label><select value={formTransaccion.idCuentaEmpresa} onChange={e => setFormTransaccion({...formTransaccion, idCuentaEmpresa: e.target.value})} style={{...inputStyle, borderColor: '#0ea5e9', background: '#f0f9ff'}}><option value="">-- Seleccionar Origen --</option>{listasFinancieras.cuentasEmpresa.map(c => (<option key={c.id} value={c.id}>{c.nombre}</option>))}</select></div></div>)}
-                              <div style={{background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '10px'}}><label style={{...labelStyle, color:'var(--primary)'}}>Asociar a Viaje (Opcional)</label><div style={{marginBottom:'10px'}}><SearchableSelect options={dashboardData?.listasRapidas?.viajes.filter(v => !formTransaccion.idCliente || v.idCliente == formTransaccion.idCliente)} value={formTransaccion.idViaje} onChange={(val) => setFormTransaccion({...formTransaccion, idViaje: val})} placeholder={formTransaccion.idCliente ? "Buscar viaje del cliente..." : "Selecciona un cliente primero"} disabled={!formTransaccion.idCliente} /></div>{formTransaccion.idViaje && (<><label style={{...labelStyle, marginTop:'10px'}}>Asociar a Servicios (El costo se dividirá)</label><div style={{ maxHeight: '200px', overflowY: 'auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding:'5px' }}>{gruposServicios.length === 0 && <div style={{padding:'15px', textAlign:'center', color:'#94a3b8', fontSize:'0.85rem'}}>No hay servicios pendientes en este viaje.</div>}{gruposServicios.map(grupo => { const nomCat = getNombreCategoria(grupo.servicioBase.categoriaId); const all = grupo.ids.every(id => selectedServiciosFinanza.includes(id)); const some = grupo.ids.some(id => selectedServiciosFinanza.includes(id)); return (<div key={grupo.key} onClick={() => toggleGrupoServicios(grupo.ids)} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: some ? '#eff6ff' : 'transparent' }}><div style={{color: all ? 'var(--primary)' : (some ? 'var(--primary-light)' : '#cbd5e1')}}>{all ? <CheckSquare size={18}/> : (some ? <div style={{width:18, height:18, background:'var(--primary-light)', borderRadius:4}}></div> : <Square size={18}/>)}</div><div style={{ flex:1 }}><div style={{fontSize:'0.85rem', fontWeight:'600', color: some ? 'var(--primary-dark)' : '#334155'}}>{nomCat} - {grupo.servicioBase.destino}{grupo.cantidad > 1 && <span style={{marginLeft:'8px', background:'#e0f2fe', color:'#0284c7', padding:'2px 6px', borderRadius:'10px', fontSize:'0.7rem'}}>x{grupo.cantidad}</span>}</div><div style={{fontSize:'0.75rem', color:'#64748b'}}>{grupo.cantidad > 1 ? (<div style={{display:'flex', alignItems:'center', gap:'4px'}}><Users size={12}/> {grupo.pasajerosStr}</div>) : (grupo.servicioBase.nombrePasajero)}</div></div></div>); })}</div></>)}</div><div style={{ height: '50px', flexShrink: 0 }}></div>
-                          </form>
-                      </div>
-                      <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
-                          <button type="submit" form="form-transaccion" className="btn-primary" disabled={procesando}>{procesando ? '...' : 'Registrar'}</button>
-                      </div>
-                  </div>
-              </div>
-          )}
           {customAlert.show && (<div style={modalOverlayStyle}><div style={{...modalContentStyle, maxWidth:'400px', textAlign:'center', padding:'30px', maxHeight:'auto', overflowY:'visible'}}><div style={{ margin: '0 auto 20px', width: '60px', height: '60px', borderRadius: '50%', background: customAlert.type === 'warning' ? '#fffbeb' : (customAlert.type === 'success' ? '#ecfdf5' : '#fef2f2'), color: customAlert.type === 'warning' ? '#f59e0b' : (customAlert.type === 'success' ? '#10b981' : '#ef4444'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{customAlert.type === 'warning' ? <AlertTriangle size={32} /> : (customAlert.type === 'success' ? <CheckCircle size={32} /> : <AlertCircle size={32} />)}</div><h3 style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontSize: '1.4rem', fontWeight: '800' }}>{customAlert.title}</h3><p style={{ margin: '0 0 25px', color: '#64748b', fontSize: '1rem', lineHeight: '1.5' }}>{customAlert.msg}</p><button onClick={closeAlert} className="btn-primary" style={{ width: '100%', background: customAlert.type === 'warning' ? '#f59e0b' : (customAlert.type === 'success' ? '#10b981' : '#ef4444'), border: 'none' }}>Entendido</button></div></div>)}
       </div>
   );
