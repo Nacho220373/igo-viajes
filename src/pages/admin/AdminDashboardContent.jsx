@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useConfig } from '../../context/ConfigContext';
@@ -440,8 +439,140 @@ export default function AdminDashboardContent() {
             </div>
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
               <form id="form-transaccion" onSubmit={handleGuardarTransaccion} style={{ display: 'grid', gap: '15px' }}>
-                {/* ... (contenido del formulario idéntico al original) ... */}
-                {/* Por brevedad, mantenemos el formulario intacto como en tu fuente, ya que no requiere cambios para la Opción A */}
+                
+                {/* SELECTOR TIPO (INGRESO / EGRESO) */}
+                <div style={{background:'#f1f5f9', padding:'10px', borderRadius:'12px', display:'flex', gap:'10px'}}>
+                    <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'10px', borderRadius:'10px', background: formTransaccion.tipo=='1'?'white':'transparent', fontWeight:'700', color: formTransaccion.tipo=='1'?'#16a34a':'#64748b', boxShadow: formTransaccion.tipo=='1'?'0 2px 5px rgba(0,0,0,0.05)':''}}>
+                        <input type="radio" name="tipo" value="1" checked={formTransaccion.tipo=='1'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Ingreso
+                    </label>
+                    <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'10px', borderRadius:'10px', background: formTransaccion.tipo=='2'?'white':'transparent', fontWeight:'700', color: formTransaccion.tipo=='2'?'#ef4444':'#64748b', boxShadow: formTransaccion.tipo=='2'?'0 2px 5px rgba(0,0,0,0.05)':''}}>
+                        <input type="radio" name="tipo" value="2" checked={formTransaccion.tipo=='2'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Egreso
+                    </label>
+                    <label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'10px', borderRadius:'10px', background: formTransaccion.tipo=='3'?'white':'transparent', fontWeight:'700', color: formTransaccion.tipo=='3'?'#2563eb':'#64748b', boxShadow: formTransaccion.tipo=='3'?'0 2px 5px rgba(0,0,0,0.05)':''}}>
+                        <input type="radio" name="tipo" value="3" checked={formTransaccion.tipo=='3'} onChange={e=>setFormTransaccion({...formTransaccion, tipo: e.target.value})} style={{display:'none'}}/> Abono
+                    </label>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                        <label style={labelStyle}>Monto</label>
+                        <input required type="number" step="0.01" value={formTransaccion.monto} onChange={e=>setFormTransaccion({...formTransaccion, monto:e.target.value})} style={inputStyle} placeholder="0.00" />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Moneda</label>
+                        <select value={formTransaccion.moneda} onChange={e=>setFormTransaccion({...formTransaccion, moneda:e.target.value})} style={inputStyle}>
+                            {listasFinancieras.monedas.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                {/* IVA CHECKBOX */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: '#f8fafc', padding: '10px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '700', color: '#475569' }}>
+                        <input type="checkbox" checked={aplicaIVA} onChange={e => setAplicaIVA(e.target.checked)} style={{ width: '18px', height: '18px' }} />
+                        Mas IVA
+                    </label>
+                    {aplicaIVA && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <input type="number" value={tasaIVA} onChange={e => setTasaIVA(e.target.value)} style={{ width: '60px', padding: '6px', borderRadius: '8px', border: '1px solid #e2e8f0' }} /> %
+                        </div>
+                    )}
+                    <div style={{ marginLeft: 'auto', fontWeight: '800', color: 'var(--primary)' }}>Total: ${calcTotal.toLocaleString()}</div>
+                </div>
+
+                <div>
+                    <label style={labelStyle}>Concepto</label>
+                    <input required type="text" value={formTransaccion.concepto} onChange={e=>setFormTransaccion({...formTransaccion, concepto:e.target.value})} style={inputStyle} placeholder="Ej. Anticipo Paquete" />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                        <label style={labelStyle}>Fecha</label>
+                        <input required type="date" value={formTransaccion.fecha} onChange={e=>setFormTransaccion({...formTransaccion, fecha:e.target.value})} style={inputStyle} />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Forma de Pago</label>
+                        <select value={formTransaccion.formaPago} onChange={e=>setFormTransaccion({...formTransaccion, formaPago:e.target.value})} style={inputStyle}>
+                            <option value="">-- Seleccionar --</option>
+                            {listasFinancieras.formasPago.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                {/* LOGICA CLIENTE vs PROVEEDOR */}
+                {formTransaccion.tipo !== '2' ? (
+                    <div>
+                        <label style={{...labelStyle, color:'var(--primary)'}}>Cliente (Origen)</label>
+                        <SearchableSelect 
+                            options={dashboardData?.listasRapidas?.clientes || []}
+                            value={formTransaccion.idCliente} 
+                            onChange={(val) => setFormTransaccion({...formTransaccion, idCliente: val})}
+                            placeholder="Buscar Cliente..."
+                        />
+                    </div>
+                ) : (
+                    <div>
+                        <label style={{...labelStyle, color:'#ef4444'}}>Proveedor (Destino)</label>
+                        <SearchableSelect 
+                            options={listaProveedores} 
+                            value={formTransaccion.idProveedor} 
+                            onChange={(val) => setFormTransaccion({...formTransaccion, idProveedor: val})}
+                            placeholder="Buscar Proveedor..."
+                        />
+                    </div>
+                )}
+
+                <div>
+                    <label style={labelStyle}>Vincular a Viaje (Opcional)</label>
+                    <SearchableSelect 
+                        options={dashboardData?.listasRapidas?.viajes || []}
+                        value={formTransaccion.idViaje} 
+                        onChange={(val) => setFormTransaccion({...formTransaccion, idViaje: val})}
+                        placeholder="Buscar Viaje/Expediente..."
+                    />
+                </div>
+
+                {/* SERVICIOS DEL VIAJE (Si se seleccionó viaje) */}
+                {gruposServicios.length > 0 && (
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                        <label style={{ ...labelStyle, color: 'var(--primary)', marginBottom: '10px' }}>Asociar a Servicios Específicos (Opcional)</label>
+                        <div style={{ maxHeight: '150px', overflowY: 'auto', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                            {gruposServicios.map(grupo => {
+                                const idsGrupo = grupo.ids || [];
+                                const isSelected = idsGrupo.some(id => selectedServiciosFinanza.includes(id));
+                                return (
+                                    <div 
+                                        key={grupo.key} 
+                                        onClick={() => toggleGrupoServicios(idsGrupo)}
+                                        style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: isSelected ? '#eff6ff' : 'transparent' }}
+                                    >
+                                        <div style={{ color: isSelected ? 'var(--primary)' : '#cbd5e1' }}>{isSelected ? <CheckSquare size={18} /> : <Square size={18} />}</div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: '600', color: isSelected ? 'var(--primary-dark)' : '#334155' }}>
+                                                {getNombreCategoria(grupo.servicioBase.categoriaId)} - {grupo.servicioBase.destino}
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Pasajeros: {grupo.pasajerosStr}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                <div>
+                    <label style={labelStyle}>Cuenta de Empresa (Destino/Origen)</label>
+                    <div style={{display:'flex', gap:'10px'}}>
+                        <select value={formTransaccion.idCuentaEmpresa} onChange={e=>setFormTransaccion({...formTransaccion, idCuentaEmpresa:e.target.value})} style={{...inputStyle, flex:1}}>
+                            <option value="">-- Seleccionar Caja/Banco --</option>
+                            {listasFinancieras.cuentasEmpresa && listasFinancieras.cuentasEmpresa.map(c => (
+                                <option key={c.id} value={c.id}>{c.nombre} ({c.banco})</option>
+                            ))}
+                        </select>
+                        <button type="button" onClick={() => setShowModalAddCuenta(true)} style={{background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'0 12px', cursor:'pointer'}}><Plus size={20} color="var(--primary)"/></button>
+                    </div>
+                </div>
+
               </form>
             </div>
             <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
@@ -459,8 +590,12 @@ export default function AdminDashboardContent() {
               <button onClick={() => setShowModalAddCuenta(false)} style={closeBtnStyle}><X size={18}/></button>
             </div>
             <div style={{padding:'25px'}}>
-              <form onSubmit={handleGuardarCuenta}>
-                {/* ... (contenido del formulario idéntico al original) ... */}
+              <form onSubmit={handleGuardarCuenta} style={{display:'grid', gap:'15px'}}>
+                  <div><label style={labelStyle}>Nombre Identificador</label><input required type="text" value={formCuenta.nombre} onChange={e=>setFormCuenta({...formCuenta, nombre:e.target.value})} style={inputStyle} placeholder="Ej. Banamex Principal"/></div>
+                  <div><label style={labelStyle}>Tipo</label><select value={formCuenta.tipo} onChange={e=>setFormCuenta({...formCuenta, tipo:e.target.value})} style={inputStyle}><option value="Banco">Banco</option><option value="Caja Chica">Caja Chica</option><option value="Plataforma">Plataforma</option></select></div>
+                  <div><label style={labelStyle}>Banco (Opcional)</label><input type="text" value={formCuenta.banco} onChange={e=>setFormCuenta({...formCuenta, banco:e.target.value})} style={inputStyle}/></div>
+                  <div><label style={labelStyle}>No. Cuenta / CLABE (Opcional)</label><input type="text" value={formCuenta.cuenta} onChange={e=>setFormCuenta({...formCuenta, cuenta:e.target.value})} style={inputStyle}/></div>
+                  <button type="submit" className="btn-primary" disabled={procesando}>{procesando ? 'Guardando...' : 'Crear Cuenta'}</button>
               </form>
             </div>
           </div>

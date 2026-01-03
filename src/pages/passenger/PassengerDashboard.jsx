@@ -125,11 +125,21 @@ export default function PassengerDashboard({ user }) {
       } catch (e) { console.error("Error catálogos", e); }
   };
 
+  // --- MODIFICACIÓN CLAVE: FILTRADO DE SERVICIOS PROPIOS ---
   const cargarServicios = async (idViaje) => {
       setLoadingServicios(true);
       const res = await enviarPeticion({ accion: 'obtenerDetallesViaje', idViaje });
       if (res.exito) {
-          setServiciosEnCurso(res.datos || []);
+          const todosLosServicios = res.datos || [];
+          
+          // FILTRO DE SEGURIDAD VISUAL:
+          // Solo mostramos los servicios que coinciden con el ID del pasajero actual.
+          // Convertimos a String para evitar errores de tipo (número vs texto).
+          const misServicios = todosLosServicios.filter(s => 
+              String(s.idPasajero) === String(user.idPasajero)
+          );
+
+          setServiciosEnCurso(misServicios);
       }
       setLoadingServicios(false);
   };
@@ -311,7 +321,7 @@ export default function PassengerDashboard({ user }) {
                             {loadingServicios ? (
                                 <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>Cargando itinerario...</div>
                             ) : serviciosAgenda.length === 0 ? (
-                                <div style={{ background: 'white', padding: '30px', borderRadius: '16px', textAlign: 'center', color: '#94a3b8', border: '1px solid #e2e8f0' }}>No hay servicios activos o pendientes de calificar.</div>
+                                <div style={{ background: 'white', padding: '30px', borderRadius: '16px', textAlign: 'center', color: '#94a3b8', border: '1px solid #e2e8f0' }}>No tienes servicios activos para hoy en este viaje.</div>
                             ) : (
                                 <div style={{ display: 'grid', gap: '15px' }}>
                                     {serviciosAgenda.map((s, idx) => {
