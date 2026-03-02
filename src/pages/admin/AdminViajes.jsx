@@ -94,7 +94,7 @@ export default function AdminViajes() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
              <button onClick={() => navigate('/')} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}><ArrowLeft size={20} /></button>
-             <div><h1 style={{ fontSize: '1.8rem', color: 'var(--primary-dark)', margin: 0, fontWeight: '800' }}>Expedientes de Viaje</h1><p style={{ color: '#64748b', margin: '0', fontSize: '0.9rem' }}>Gestión de aventuras activas</p></div>
+             <div><h1 style={{ fontSize: '1.8rem', color: 'var(--primary-dark)', margin: 0, fontWeight: '800' }}>Viajes Activos</h1><p style={{ color: '#64748b', margin: '0', fontSize: '0.9rem' }}>Gestión de aventuras activas</p></div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ background: '#f1f5f9', padding: '4px', borderRadius: '12px', display: 'flex', gap:'4px' }}>
@@ -105,7 +105,7 @@ export default function AdminViajes() {
         </div>
       </div>
 
-      <div style={{ position: 'relative', marginBottom: '25px', maxWidth: '600px' }}><Search size={20} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} /><input type="text" placeholder="Buscar expediente..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ width: '100%', padding: '16px 16px 16px 48px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }} /></div>
+      <div style={{ position: 'relative', marginBottom: '25px', maxWidth: '600px' }}><Search size={20} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} /><input type="text" placeholder="Buscar viaje..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ width: '100%', padding: '16px 16px 16px 48px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }} /></div>
 
       {loading ? <div style={{textAlign:'center', padding:'40px', color:'#94a3b8'}}>Cargando viajes...</div> : (
         <div style={{ 
@@ -150,7 +150,7 @@ export default function AdminViajes() {
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'visible' }}>
-            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-main)', fontWeight: '800' }}>Nuevo Expediente</h2><button onClick={() => setShowModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><X size={18} /></button></div>
+            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-main)', fontWeight: '800' }}>Nuevo Viaje</h2><button onClick={() => setShowModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><X size={18} /></button></div>
             <div style={{ padding: '30px' }}>
               <form onSubmit={handleGuardar} style={{ display: 'grid', gap: '20px' }}>
                 <div><label style={labelStyle}>Nombre del Viaje *</label><input required type="text" placeholder="Ej. Boda en Cancún" value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} style={inputStyle} /></div>
@@ -181,7 +181,7 @@ export default function AdminViajes() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={labelStyle}>Fecha Inicio</label><input type="date" value={form.fechaInicio} onChange={e => setForm({...form, fechaInicio: e.target.value})} style={inputStyle} /></div><div><label style={labelStyle}>Fecha Fin</label><input type="date" value={form.fechaFin} onChange={e => setForm({...form, fechaFin: e.target.value})} style={inputStyle} /></div></div>
                 <div><label style={labelStyle}>Tipo de Viaje</label><select value={form.tipo} onChange={e => setForm({...form, tipo: e.target.value})} style={inputStyle}><option value="1">Vacacional</option><option value="2">Negocios</option></select></div>
-                <button type="submit" className="btn-primary" disabled={procesando} style={{ marginTop: '10px' }}>{procesando ? 'Creando...' : 'Crear Expediente'}</button>
+                <button type="submit" className="btn-primary" disabled={procesando} style={{ marginTop: '10px' }}>{procesando ? 'Creando...' : 'Crear Viaje'}</button>
               </form>
             </div>
           </div>

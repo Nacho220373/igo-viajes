@@ -528,7 +528,7 @@ export default function AdminDashboardContent() {
                         options={dashboardData?.listasRapidas?.viajes || []}
                         value={formTransaccion.idViaje} 
                         onChange={(val) => setFormTransaccion({...formTransaccion, idViaje: val})}
-                        placeholder="Buscar Viaje/Expediente..."
+                        placeholder="Buscar Viaje..."
                     />
                 </div>
 
