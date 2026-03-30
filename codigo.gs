@@ -828,6 +828,8 @@ function obtenerDetallesViaje(idViaje) {
       costoProveedor: mapaServ["Costo Proveedor"] !== undefined ? parseFloat(String(s[mapaServ["Costo Proveedor"]]).replace(/[^0-9.-]+/g,"")) || 0 : 0,
       precioVenta: mapaServ["Precio Venta"] !== undefined ? parseFloat(String(s[mapaServ["Precio Venta"]]).replace(/[^0-9.-]+/g,"")) || 0 : 0,
       idProveedor: mapaServ["ID Proveedor"] !== undefined ? s[mapaServ["ID Proveedor"]] : "",
+      fechaLimitePagoProv: mapaServ["Fecha Límite Pago Proveedor"] !== undefined ? s[mapaServ["Fecha Límite Pago Proveedor"]] : "",
+      estatusPagoProv: mapaServ["Estatus Pago Proveedor"] !== undefined ? s[mapaServ["Estatus Pago Proveedor"]] : "Pendiente",
 
       calificacion: mapaServ["Calificación"] !== undefined ? s[mapaServ["Calificación"]] : "",
       comentarios: mapaServ["Comentarios"] !== undefined ? s[mapaServ["Comentarios"]] : ""

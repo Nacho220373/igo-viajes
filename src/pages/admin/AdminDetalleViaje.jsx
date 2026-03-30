@@ -50,12 +50,13 @@ export default function AdminDetalleViaje() {
   const formServicioInicial = { 
       categoria: '', destino: '', clave: '', numeroVuelo: '', fechaInicio: '', fechaFin: '', estatus: '',
       // NUEVOS CAMPOS FINANCIEROS EN SERVICIO
-      costoProveedor: '', precioVenta: '', idProveedor: '' 
+      costoProveedor: '', precioVenta: '', idProveedor: '',
+      fechaLimitePagoProv: '', estatusPagoProv: 'Pendiente'
   };
   const [formServicio, setFormServicio] = useState(formServicioInicial);
   const [selectedPasajeros, setSelectedPasajeros] = useState([]); 
 
-  const formFinanzaInicial = { tipo: '1', formaPago: '', monto: '', moneda: '1', concepto: '', idProveedor: '', fecha: new Date().toISOString().split('T')[0] };
+  const formFinanzaInicial = { tipo: '1', formaPago: '', monto: '', moneda: '1', concepto: '', idProveedor: '', fecha: new Date().toISOString().split('T')[0], idCuentaEmpresa: '', aplicaIVA: false, tasaIVA: 16, noFactura: '' };
   const [formFinanza, setFormFinanza] = useState(formFinanzaInicial);
   const [selectedServiciosFinanza, setSelectedServiciosFinanza] = useState([]);
 
@@ -234,7 +235,8 @@ export default function AdminDetalleViaje() {
         categoria: s.categoriaId, destino: s.destino, clave: s.clave, numeroVuelo: s.numeroVuelo || '',
         fechaInicio: toInput(s.fechaInicio), fechaFin: toInput(s.fechaFin), estatus: s.estatusId,
         // Cargar datos financieros
-        costoProveedor: s.costoProveedor, precioVenta: s.precioVenta, idProveedor: s.idProveedor
+        costoProveedor: s.costoProveedor, precioVenta: s.precioVenta, idProveedor: s.idProveedor,
+        fechaLimitePagoProv: s.fechaLimitePagoProv || '', estatusPagoProv: s.estatusPagoProv || 'Pendiente'
     });
     
     const pasajerosGrupo = grupo.pasajeros.map(p => {
@@ -306,8 +308,19 @@ export default function AdminDetalleViaje() {
   const handleGuardarTransaccion = async (e) => {
     e.preventDefault();
     setProcesando(true);
+    
+    let montoNum = parseFloat(formFinanza.monto) || 0;
+    let subtotal = montoNum;
+    let montoIVA = 0;
+    if (formFinanza.aplicaIVA) {
+        subtotal = montoNum / (1 + (formFinanza.tasaIVA / 100));
+        montoIVA = montoNum - subtotal;
+    }
+
     const transaccionEnviar = { 
         ...formFinanza, 
+        subtotal: subtotal.toFixed(2),
+        montoIVA: montoIVA.toFixed(2),
         idViaje: id, 
         idCliente: viajeInfo.idCliente,
         idServicio: selectedServiciosFinanza 
@@ -685,6 +698,21 @@ export default function AdminDetalleViaje() {
                             <label style={labelStyle}>Proveedor del Servicio</label>
                             <SearchableSelect options={listaProveedores} value={formServicio.idProveedor} onChange={(val) => setFormServicio({...formServicio, idProveedor: val})} placeholder="Seleccionar Proveedor..." />
                         </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '10px' }}>
+                            <div>
+                                <label style={labelStyle}>Fecha Límite Pago Prov.</label>
+                                <input type="date" value={formServicio.fechaLimitePagoProv} onChange={e=>setFormServicio({...formServicio, fechaLimitePagoProv:e.target.value})} style={inputStyle}/>
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Estatus de Pago</label>
+                                <select value={formServicio.estatusPagoProv} onChange={e=>setFormServicio({...formServicio, estatusPagoProv:e.target.value})} style={inputStyle}>
+                                    <option value="Pendiente">Pendiente</option>
+                                    <option value="Parcial">Parcial</option>
+                                    <option value="Pagado">Pagado</option>
+                                </select>
+                            </div>
+                        </div>
+
                         {formServicio.costoProveedor && formServicio.precioVenta && (
                             <div style={{marginTop:'10px', textAlign:'right', fontSize:'0.85rem', color: (formServicio.precioVenta - formServicio.costoProveedor) >= 0 ? '#15803d' : '#ef4444'}}>
                                 <strong>Utilidad Unitaria:</strong> ${(formServicio.precioVenta - formServicio.costoProveedor).toLocaleString()}
@@ -712,8 +740,24 @@ export default function AdminDetalleViaje() {
                     <div style={{background:'#f1f5f9', padding:'10px', borderRadius:'10px', display:'flex', gap:'10px'}}><label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formFinanza.tipo=='1'?'white':'transparent', fontWeight:'700', boxShadow: formFinanza.tipo=='1'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="1" checked={formFinanza.tipo=='1'} onChange={e=>setFormFinanza({...formFinanza, tipo: e.target.value})} style={{display:'none'}}/> Ingreso</label><label style={{flex:1, cursor:'pointer', textAlign:'center', padding:'8px', borderRadius:'8px', background: formFinanza.tipo=='2'?'white':'transparent', fontWeight:'700', boxShadow: formFinanza.tipo=='2'?'0 2px 5px rgba(0,0,0,0.05)':''}}><input type="radio" name="tipo" value="2" checked={formFinanza.tipo=='2'} onChange={e=>setFormFinanza({...formFinanza, tipo: e.target.value})} style={{display:'none'}}/> Egreso</label></div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}><div><label style={labelStyle}>Monto Total</label><input required type="number" step="0.01" value={formFinanza.monto} onChange={e=>setFormFinanza({...formFinanza, monto:e.target.value})} style={inputStyle} placeholder="0.00" /></div><div><label style={labelStyle}>Moneda</label><select value={formFinanza.moneda} onChange={e=>setFormFinanza({...formFinanza, moneda:e.target.value})} style={inputStyle}>{listaMonedas.map(m=><option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div></div>
                     <label style={labelStyle}>Concepto</label><input required type="text" value={formFinanza.concepto} onChange={e=>setFormFinanza({...formFinanza, concepto:e.target.value})} style={inputStyle} placeholder="Ej. Pago de Vuelo" />
-                    <label style={labelStyle}>Forma de Pago</label><select value={formFinanza.formaPago} onChange={e=>setFormFinanza({...formFinanza, formaPago:e.target.value})} style={inputStyle}>{listaFormasPago.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}</select>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div><label style={labelStyle}>Forma de Pago</label><select value={formFinanza.formaPago} onChange={e=>setFormFinanza({...formFinanza, formaPago:e.target.value})} style={inputStyle}>{listaFormasPago.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}</select></div>
+                        <div><label style={labelStyle}>Cuenta de Empresa</label><select value={formFinanza.idCuentaEmpresa} onChange={e=>setFormFinanza({...formFinanza, idCuentaEmpresa:e.target.value})} style={inputStyle}><option value="">-- Opcional --</option>{listaCuentasEmpresa.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
+                    </div>
                     {formFinanza.tipo == '2' && (<div><label style={labelStyle}>Proveedor</label><SearchableSelect options={listaProveedores} value={formFinanza.idProveedor} onChange={(val) => setFormFinanza({...formFinanza, idProveedor: val})} placeholder="Buscar Proveedor..." /></div>)}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '10px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <input type="checkbox" id="aplicaiva" checked={formFinanza.aplicaIVA} onChange={e=>setFormFinanza({...formFinanza, aplicaIVA: e.target.checked})} style={{width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--primary)'}} />
+                            <label htmlFor="aplicaiva" style={{margin: 0, fontWeight: '700', fontSize: '0.9rem', color: '#475569', cursor: 'pointer'}}>Desglosar IVA</label>
+                        </div>
+                        <div><label style={labelStyle}>No. Factura / Recibo (Opcional)</label><input type="text" value={formFinanza.noFactura} onChange={e=>setFormFinanza({...formFinanza, noFactura:e.target.value})} style={inputStyle} placeholder="Ej. F-1025" /></div>
+                    </div>
+                    {formFinanza.aplicaIVA && formFinanza.monto > 0 && (
+                        <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '8px', border: '1px dashed #93c5fd', fontSize: '0.85rem', color: '#1e3a8a', display: 'flex', justifyContent: 'space-between' }}>
+                            <div><strong>Subtotal:</strong> ${(Number(formFinanza.monto) / (1 + (formFinanza.tasaIVA/100))).toFixed(2)}</div>
+                            <div><strong>IVA ({formFinanza.tasaIVA}%):</strong> ${(Number(formFinanza.monto) - (Number(formFinanza.monto) / (1 + (formFinanza.tasaIVA/100)))).toFixed(2)}</div>
+                        </div>
+                    )}
                     
                     <div style={{ borderTop:'1px solid #f1f5f9', paddingTop:'15px' }}>
                         <label style={{...labelStyle, color:'var(--primary)', marginBottom:'10px'}}>Asociar a Servicios (El costo se dividirá)</label>

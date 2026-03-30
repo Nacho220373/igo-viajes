@@ -68,6 +68,8 @@ export default function AdminDashboardContent() {
     idCliente: '', idViaje: '', idProveedor: '',
     noFactura: '',
     idCuentaEmpresa: '',
+    uuidFactura: '',
+    conciliado: false,
     fecha: new Date().toISOString().split('T')[0]
   };
   const [formTransaccion, setFormTransaccion] = useState(formTransaccionInicial);
@@ -447,10 +449,24 @@ export default function AdminDashboardContent() {
       return showAlert("Faltan datos", "Selecciona un cliente para este movimiento", "warning");
     }
     setProcesando(true);
-    const subtotal = parseFloat(formTransaccion.monto) || 0;
-    const montoIVA = aplicaIVA ? (subtotal * (parseFloat(tasaIVA) / 100)) : 0;
-    const total = subtotal + montoIVA;
-    const transaccionEnviar = { ...formTransaccion, aplicaIVA, tasaIVA: aplicaIVA ? tasaIVA : 0, subtotal, montoIVA, monto: total, idServicio: selectedServiciosFinanza.length > 0 ? selectedServiciosFinanza : '' };
+    let montoNum = parseFloat(formTransaccion.monto) || 0;
+    let subtotal = montoNum;
+    let montoIVA = 0;
+    
+    if (aplicaIVA) {
+        subtotal = montoNum / (1 + (parseFloat(tasaIVA) / 100));
+        montoIVA = montoNum - subtotal;
+    }
+
+    const transaccionEnviar = { 
+        ...formTransaccion, 
+        aplicaIVA, 
+        tasaIVA: aplicaIVA ? parseFloat(tasaIVA) : 0, 
+        subtotal: subtotal.toFixed(2), 
+        montoIVA: montoIVA.toFixed(2), 
+        monto: formTransaccion.monto,
+        idServicio: selectedServiciosFinanza.length > 0 ? selectedServiciosFinanza : '' 
+    };
     
     if (modoEdicionTransaccion) {
        transaccionEnviar.idTransaccion = idTransaccionEditar;
@@ -502,6 +518,8 @@ export default function AdminDashboardContent() {
       idProveedor: t.idProveedor || '',
       noFactura: t.noFactura || '',
       idCuentaEmpresa: t.idCuentaEmpresa || '',
+      uuidFactura: t.uuidFactura || '',
+      conciliado: t.conciliado || false,
       fecha: t.fecha,
       idServicio: t.idServicio || ''
     });
@@ -534,8 +552,8 @@ export default function AdminDashboardContent() {
 
   const gruposServicios = (showModalTransaccion && serviciosViaje.length > 0) ? obtenerServiciosAgrupados() : [];
   const calcSubtotal = parseFloat(formTransaccion.monto) || 0;
-  const calcIVA = aplicaIVA ? (calcSubtotal * (parseFloat(tasaIVA) / 100)) : 0;
-  const calcTotal = calcSubtotal + calcIVA;
+  const calcIVA = aplicaIVA ? (calcSubtotal - (calcSubtotal / (1 + (parseFloat(tasaIVA)/100)))) : 0;
+  const calcTotal = calcSubtotal;
 
   return (
     <div className="dashboard-container" style={{ paddingTop: '80px' }}>
@@ -752,6 +770,28 @@ export default function AdminDashboardContent() {
                             <option value="">-- Seleccionar --</option>
                             {listasFinancieras.formasPago.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}
                         </select>
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Cuenta de Empresa (Banco)</label>
+                        <select value={formTransaccion.idCuentaEmpresa} onChange={e=>setFormTransaccion({...formTransaccion, idCuentaEmpresa:e.target.value})} style={inputStyle}>
+                            <option value="">-- Opcional --</option>
+                            {listasFinancieras.cuentasEmpresa.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '10px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <input type="checkbox" id="conciliado" checked={formTransaccion.conciliado} onChange={e=>setFormTransaccion({...formTransaccion, conciliado: e.target.checked})} style={{width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--primary)'}} />
+                        <label htmlFor="conciliado" style={{margin: 0, fontWeight: '700', fontSize: '0.9rem', color: '#475569', cursor: 'pointer'}}>Conciliado (Comprobado)</label>
+                    </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div>
+                        <label style={labelStyle}>No. Factura / Recibo (Opcional)</label>
+                        <input type="text" value={formTransaccion.noFactura} onChange={e=>setFormTransaccion({...formTransaccion, noFactura:e.target.value})} style={inputStyle} placeholder="Ej. F-1025" />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>Folio Fiscal / UUID (Opcional)</label>
+                        <input type="text" value={formTransaccion.uuidFactura} onChange={e=>setFormTransaccion({...formTransaccion, uuidFactura:e.target.value})} style={inputStyle} placeholder="Ej. A1B2C3D4..." />
                     </div>
                 </div>
 
