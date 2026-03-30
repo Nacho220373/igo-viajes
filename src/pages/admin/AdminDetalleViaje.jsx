@@ -3,7 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { enviarPeticion } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../../components/SearchableSelect';
-import { ArrowLeft, Plus, MapPin, User, Tag, Plane, Hotel, Car, Utensils, Ticket, Wallet, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Star, MessageSquare, CheckSquare, Square, Users, Trash2, Pencil, X, AlertCircle, DollarSign, PieChart } from 'lucide-react';
+import { ArrowLeft, Plus, MapPin, User, Tag, Plane, Hotel, Car, Utensils, Ticket, Wallet, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Star, MessageSquare, CheckSquare, Square, Users, Trash2, Pencil, X, AlertCircle, DollarSign, PieChart, Activity } from 'lucide-react';
+import Loader from '../../components/Loader';
+import FlightTracker from '../../components/FlightTracker';
+import FirstTripWizard from '../../components/FirstTripWizard';
 
 export default function AdminDetalleViaje() {
   const { id } = useParams(); 
@@ -14,9 +17,11 @@ export default function AdminDetalleViaje() {
   const [activeTab, setActiveTab] = useState('itinerario'); 
   const [viajeInfo, setViajeInfo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [servicios, setServicios] = useState([]);
   const [pasajeros, setPasajeros] = useState([]); 
   const [transacciones, setTransacciones] = useState([]);
+  const [documentos, setDocumentos] = useState([]);
   
   // ESTADO DE RESUMEN FINANCIERO
   const [resumenFinanciero, setResumenFinanciero] = useState(null);
@@ -43,7 +48,7 @@ export default function AdminDetalleViaje() {
 
   // Forms
   const formServicioInicial = { 
-      categoria: '', destino: '', clave: '', fechaInicio: '', fechaFin: '', estatus: '',
+      categoria: '', destino: '', clave: '', numeroVuelo: '', fechaInicio: '', fechaFin: '', estatus: '',
       // NUEVOS CAMPOS FINANCIEROS EN SERVICIO
       costoProveedor: '', precioVenta: '', idProveedor: '' 
   };
@@ -54,6 +59,10 @@ export default function AdminDetalleViaje() {
   const [formFinanza, setFormFinanza] = useState(formFinanzaInicial);
   const [selectedServiciosFinanza, setSelectedServiciosFinanza] = useState([]);
 
+  // --- DOCUMENTOS STATES ---
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [formDocumento, setFormDocumento] = useState({ archivo: null, nombreArchivo: '', base64: '', idServicio: '', tipo: 'Boleto' });
+
   useEffect(() => { cargarDatosGenerales(); }, [id]);
   
   // Cargar finanzas cada vez que se entra al tab o se actualiza algo
@@ -63,7 +72,24 @@ export default function AdminDetalleViaje() {
 
   // --- CARGA DE DATOS ---
   const cargarDatosGenerales = async () => {
-    setLoading(true);
+    const cacheKey = `igo_cache_detalle_viaje_${id}`;
+    const cacheData = sessionStorage.getItem(cacheKey);
+
+    if (cacheData) {
+        const parsed = JSON.parse(cacheData);
+        setListaCategorias(parsed.listaCategorias);
+        setListaEstatus(parsed.listaEstatus);
+        setViajeInfo(parsed.viajeInfo);
+        setServicios(parsed.servicios);
+        setDocumentos(parsed.documentos || []);
+        setListaProveedores(parsed.listaProveedores);
+        setPasajeros(parsed.pasajeros);
+        setLoading(false);
+        setIsRefreshing(true);
+    } else {
+        setLoading(true);
+    }
+
     try {
       const [resListas, resInfo, resServicios, resPasajeros, resProv] = await Promise.all([
           enviarPeticion({ accion: 'obtenerListas' }),
@@ -73,21 +99,54 @@ export default function AdminDetalleViaje() {
           enviarPeticion({ accion: 'obtenerProveedores' }) // Necesario para el modal de servicios
       ]);
 
+      let objCategorias = [];
+      let objEstatus = [];
+      let objProveedores = [];
+      let arrServicios = [];
+      let arrPasajeros = [];
+
       if (resListas.exito) {
-        setListaCategorias(resListas.listas.categorias || []);
-        setListaEstatus(resListas.listas.estatus || []);
+        objCategorias = resListas.listas.categorias || [];
+        objEstatus = resListas.listas.estatus || [];
+        setListaCategorias(objCategorias);
+        setListaEstatus(objEstatus);
       }
       if (resInfo.exito) setViajeInfo(resInfo.viaje);
-      if (resServicios.exito) setServicios(resServicios.datos);
-      if (resProv.exito) setListaProveedores(resProv.datos);
+      if (resServicios.exito) {
+          arrServicios = resServicios.datos;
+          setServicios(arrServicios);
+          if(resServicios.documentos) setDocumentos(resServicios.documentos);
+      }
+      if (resProv.exito) {
+          objProveedores = resProv.datos;
+          setListaProveedores(objProveedores);
+      }
       if (resPasajeros.exito) {
           let pasajerosDisp = resPasajeros.datos;
           if (resInfo.exito && user.rol !== 'Administrador') {
              pasajerosDisp = resPasajeros.datos.filter(p => p.idCliente == resInfo.viaje.idCliente);
           }
-          setPasajeros(pasajerosDisp.map(p => ({ ...p, nombre: `${p.nombre} ${p.apellidoP}` })));
+          arrPasajeros = pasajerosDisp.map(p => ({ ...p, nombre: `${p.nombre} ${p.apellidoP}` }));
+          setPasajeros(arrPasajeros);
       }
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+
+      if (resInfo.exito) {
+          sessionStorage.setItem(cacheKey, JSON.stringify({
+              listaCategorias: objCategorias,
+              listaEstatus: objEstatus,
+              viajeInfo: resInfo.viaje,
+              servicios: arrServicios,
+              documentos: resServicios?.documentos || [],
+              listaProveedores: objProveedores,
+              pasajeros: arrPasajeros
+          }));
+      }
+    } catch (e) { 
+        console.error(e); 
+    } finally { 
+        setLoading(false); 
+        setIsRefreshing(false);
+    }
   };
 
   const cargarDatosFinancieros = async () => {
@@ -147,6 +206,10 @@ export default function AdminDetalleViaje() {
 
   // --- GESTIÓN DE SERVICIOS ---
   const abrirModalCrear = () => {
+    if (listaProveedores.length === 0) {
+        showAlert("Sistema Incompleto", "No puedes agregar un servicio porque no tienes proveedores registrados en la base de datos. Por favor, ve al módulo de Proveedores y registra al menos uno.", "warning");
+        return;
+    }
     setIsEditingServicio(false); setCurrentIdServicio(null);
     setFormServicio({...formServicioInicial, categoria: listaCategorias[0]?.id || '1', estatus: listaEstatus[0]?.id || '1'});
     setSelectedPasajeros([]); 
@@ -168,7 +231,7 @@ export default function AdminDetalleViaje() {
     };
 
     setFormServicio({
-        categoria: s.categoriaId, destino: s.destino, clave: s.clave,
+        categoria: s.categoriaId, destino: s.destino, clave: s.clave, numeroVuelo: s.numeroVuelo || '',
         fechaInicio: toInput(s.fechaInicio), fechaFin: toInput(s.fechaFin), estatus: s.estatusId,
         // Cargar datos financieros
         costoProveedor: s.costoProveedor, precioVenta: s.precioVenta, idProveedor: s.idProveedor
@@ -261,6 +324,60 @@ export default function AdminDetalleViaje() {
     setProcesando(false);
   };
 
+  // --- LOGICA DOCUMENTOS ---
+  const handleArchivoChange = (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      if(file.size > 5 * 1024 * 1024) return showAlert('Atención', 'El archivo no puede superar los 5MB', 'warning');
+      
+      const reader = new FileReader();
+      reader.onload = (ev) => setFormDocumento(prev => ({...prev, archivo: file, nombreArchivo: file.name, base64: ev.target.result}));
+      reader.readAsDataURL(file);
+  };
+
+  const handleSubirDocumento = async (e) => {
+      e.preventDefault();
+      if(!formDocumento.base64) return showAlert('Atención', 'Selecciona un archivo', 'warning');
+      setUploadingDoc(true);
+      
+      const res = await enviarPeticion({
+          accion: 'subirDocumento',
+          idViaje: id,
+          idServicio: formDocumento.idServicio,
+          nombreArchivo: formDocumento.nombreArchivo,
+          tipo: formDocumento.tipo,
+          base64Data: formDocumento.base64
+      });
+      
+      if(res.exito) {
+          showAlert('Éxito', 'Documento subido', 'success');
+          setFormDocumento({ archivo: null, nombreArchivo: '', base64: '', idServicio: '', tipo: 'Boleto' });
+          cargarDatosGenerales(); 
+      } else {
+          showAlert('Error', res.error);
+      }
+      setUploadingDoc(false);
+  };
+  
+  const handleEliminarDocumento = async (idDoc) => {
+      setConfirmConfig({
+          show: true,
+          message: "¿Estás seguro que deseas eliminar este documento tanto de la base de datos como de Google Drive? Esta acción no se puede deshacer.",
+          onConfirm: async () => {
+              setConfirmConfig({ show: false });
+              setLoading(true);
+              const res = await enviarPeticion({ accion: 'eliminarDocumento', idDocumento: idDoc });
+              if(res.exito) {
+                  showAlert('Éxito', 'Documento eliminado', 'success');
+                  cargarDatosGenerales();
+              } else {
+                  showAlert('Error', res.error);
+              }
+              setLoading(false);
+          } 
+      });
+  };
+
   // --- UTILS ---
   const getIconoCategoria = (catId) => { 
       const n = listaCategorias.find(c => c.id == catId)?.nombre?.toLowerCase() || '';
@@ -293,18 +410,34 @@ export default function AdminDetalleViaje() {
       return nombres.join(", ");
   };
 
+  if (loading) {
+    return (
+      <div className="dashboard-container">
+        <Loader message="Cargando detalle del viaje..." />
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container">
       {/* HEADER */}
       <div style={{ marginBottom: '20px' }}>
         <button onClick={() => navigate('/admin/viajes')} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', fontWeight: '700', marginBottom: '15px' }}><ArrowLeft size={16} /> Volver</button>
-        <h1 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--primary-dark)', fontWeight: '800' }}>{viajeInfo ? viajeInfo.nombre : 'Cargando...'}</h1>
+        <h1 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--primary-dark)', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {viajeInfo ? viajeInfo.nombre : 'Cargando...'}
+            {isRefreshing && (
+              <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.8 }}>
+                <Activity size={20} className="spin-animation" color="var(--primary)"/> <span style={{fontSize:'0.8rem'}}>Actualizando...</span>
+              </span>
+            )}
+        </h1>
       </div>
 
       {/* TABS */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', borderBottom: '2px solid #e2e8f0' }}>
         <button onClick={() => setActiveTab('itinerario')} style={{ padding: '12px 24px', background: 'transparent', border: 'none', borderBottom: activeTab === 'itinerario' ? '3px solid var(--primary)' : '3px solid transparent', color: activeTab === 'itinerario' ? 'var(--primary)' : '#64748b', fontWeight: '800', cursor: 'pointer' }}>Itinerario</button>
         <button onClick={() => setActiveTab('finanzas')} style={{ padding: '12px 24px', background: 'transparent', border: 'none', borderBottom: activeTab === 'finanzas' ? '3px solid var(--primary)' : '3px solid transparent', color: activeTab === 'finanzas' ? 'var(--primary)' : '#64748b', fontWeight: '800', cursor: 'pointer' }}>Finanzas P&L</button>
+        <button onClick={() => setActiveTab('documentos')} style={{ padding: '12px 24px', background: 'transparent', border: 'none', borderBottom: activeTab === 'documentos' ? '3px solid var(--primary)' : '3px solid transparent', color: activeTab === 'documentos' ? 'var(--primary)' : '#64748b', fontWeight: '800', cursor: 'pointer' }}>Documentos</button>
       </div>
 
       {activeTab === 'itinerario' && (
@@ -317,7 +450,7 @@ export default function AdminDetalleViaje() {
                 {serviciosAgrupados.map((grupo) => {
                     const s = grupo.servicioBase;
                     return (
-                        <div key={grupo.idServicio} className="dashboard-card" style={{ padding: '20px', flexDirection: 'column' }}>
+                        <div key={grupo.idServicio} className="dashboard-card" style={{ padding: '20px', flexDirection: 'column', height: 'auto' }}>
                             {/* ENCABEZADO DE TARJETA */}
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'15px'}}>
                                 <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
@@ -339,6 +472,11 @@ export default function AdminDetalleViaje() {
                                 <div style={{display:'flex', alignItems:'center', gap:'6px'}}><Tag size={14}/> {s.fechaInicio}</div>
                                 {s.clave && <div style={{display:'flex', alignItems:'center', gap:'6px'}}><Tag size={14}/> Ref: {s.clave}</div>}
                             </div>
+
+                            {/* INTEGRACIÓN FLIGHT TRACKER */}
+                            {getNombreCategoria(s.categoriaId).toLowerCase().includes('vuelo') && s.numeroVuelo && (
+                                <FlightTracker numeroVuelo={s.numeroVuelo} fechaInicio={s.fechaInicio} />
+                            )}
 
                             {/* MINI DASHBOARD FINANCIERO POR SERVICIO */}
                             <div style={{background: '#f0fdf4', padding: '8px 15px', borderRadius: '8px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', border: '1px solid #bbf7d0', color: '#166534'}}>
@@ -399,7 +537,7 @@ export default function AdminDetalleViaje() {
                         <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: '800', color: resumenFinanciero.porPagar > 0 ? '#ef4444' : '#10b981' }}><span>Deuda Proveedores</span><span>${resumenFinanciero.porPagar.toLocaleString()}</span></div>
                     </div>
                 </div>
-            ) : <div style={{textAlign:'center', padding:'20px'}}>Cargando resumen...</div>}
+            ) : <Loader message="Cargando resumen..." />}
 
             <div style={{ textAlign: 'right', marginBottom: '20px' }}><button onClick={() => { setShowModalFinanzas(true); setSelectedServiciosFinanza([]); }} className="btn-primary" style={{ width: 'auto', padding: '10px 20px', borderRadius: '50px', fontSize: '0.9rem', background: '#0f172a' }}><DollarSign size={16} /> Nueva Transacción</button></div>
             
@@ -410,6 +548,81 @@ export default function AdminDetalleViaje() {
                         {transacciones.length === 0 ? (<tr><td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No hay movimientos registrados</td></tr>) : (transacciones.map((t, i) => (<tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}><td style={{ padding: '15px' }}>{t.fecha}</td><td style={{ padding: '15px', fontWeight: '600' }}>{t.concepto}</td><td style={{ padding: '15px' }}><span style={{ background: t.tipoId == 1 ? '#ecfdf5' : '#fef2f2', color: t.tipoId == 1 ? '#16a34a' : '#ef4444', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>{t.tipoId == 1 ? 'Ingreso' : 'Egreso'}</span></td><td style={{ padding: '15px', textAlign: 'right', fontWeight: '700', color: t.tipoId == 1 ? '#16a34a' : '#ef4444' }}>{t.tipoId == 2 ? '-' : '+'}${t.monto}</td></tr>)))}
                     </tbody>
                 </table>
+            </div>
+        </div>
+      )}
+
+      {activeTab === 'documentos' && (
+        <div className="fade-in">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', alignItems: 'start' }}>
+                {/* Formulario de Subida */}
+                <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                    <h3 style={{ margin: '0 0 15px 0', fontSize: '1.2rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'8px' }}>
+                        <Plus size={20} color="var(--primary)"/> Subir Documento
+                    </h3>
+                    <form onSubmit={handleSubirDocumento} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div>
+                            <label style={labelStyle}>Seleccionar Archivo (Máx 5MB)</label>
+                            <input required type="file" accept=".pdf,image/png,image/jpeg" onChange={handleArchivoChange} style={{...inputStyle, padding: '8px'}} />
+                        </div>
+                        <div>
+                            <label style={labelStyle}>Tipo de Documento</label>
+                            <select value={formDocumento.tipo} onChange={e=>setFormDocumento({...formDocumento, tipo: e.target.value})} style={inputStyle}>
+                                <option value="Boleto">Boleto / Pase de Abordar</option>
+                                <option value="Itinerario">Itinerario</option>
+                                <option value="Factura">Factura</option>
+                                <option value="Pasaporte">Pasaporte / Visa</option>
+                                <option value="Otro">Otro Documento</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style={{...labelStyle, color:'var(--primary)'}}>Vincular a Servicio (Opcional)</label>
+                            <select value={formDocumento.idServicio} onChange={e=>setFormDocumento({...formDocumento, idServicio: e.target.value})} style={{...inputStyle, borderColor: 'var(--primary)'}}>
+                                <option value="">Global (General del Viaje)</option>
+                                {serviciosAgrupados.map(g => (
+                                    <option key={g.idServicio} value={g.idServicio}>
+                                        {getNombreCategoria(g.servicioBase.categoriaId)} - {g.servicioBase.destino}
+                                    </option>
+                                ))}
+                            </select>
+                            <p style={{fontSize:'0.75rem', color:'#64748b', margin:'5px 0 0'}}>Si lo vinculas, el pasajero verá el botón "Ver Boleto" directamente en su itinerario.</p>
+                        </div>
+                        <button type="submit" disabled={uploadingDoc || !formDocumento.archivo} className="btn-primary" style={{ marginTop: '10px' }}>
+                            {uploadingDoc ? 'Subiendo...' : 'Subir y Guardar'}
+                        </button>
+                    </form>
+                </div>
+                
+                {/* Lista de Documentos */}
+                <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.95rem' }}>
+                        <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                            <tr><th style={{ padding: '15px', textAlign: 'left', color: '#64748b' }}>Archivo</th><th style={{ padding: '15px', textAlign: 'left', color: '#64748b' }}>Tipo</th><th style={{ padding: '15px', textAlign: 'left', color: '#64748b' }}>Vinculado a</th><th style={{ padding: '15px', textAlign: 'left', color: '#64748b' }}>Fecha</th><th style={{ padding: '15px', textAlign: 'right', color: '#64748b' }}>Acciones</th></tr>
+                        </thead>
+                        <tbody>
+                            {documentos.length === 0 ? (
+                                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No hay documentos para este viaje.</td></tr>
+                            ) : (
+                                documentos.map((d, i) => {
+                                    const mServ = d.idServicio ? serviciosAgrupados.find(s => String(s.idServicio) === String(d.idServicio)) : null;
+                                    const nombreServ = mServ ? `${getNombreCategoria(mServ.servicioBase.categoriaId)} ${mServ.servicioBase.destino}` : 'General';
+                                    
+                                    return (
+                                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '15px', fontWeight: '600', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><a href={d.url} target="_blank" rel="noreferrer" style={{color:'var(--primary)', textDecoration:'none'}} title={d.nombre}>{d.nombre}</a></td>
+                                            <td style={{ padding: '15px' }}><span style={{background:'#f1f5f9', padding:'4px 10px', borderRadius:'12px', fontSize:'0.8rem', fontWeight:'600'}}>{d.tipo}</span></td>
+                                            <td style={{ padding: '15px', color: mServ ? 'inherit' : '#94a3b8' }}>{nombreServ}</td>
+                                            <td style={{ padding: '15px', color: '#64748b', fontSize: '0.85rem' }}>{d.fecha}</td>
+                                            <td style={{ padding: '15px', textAlign: 'right' }}>
+                                                <button onClick={() => handleEliminarDocumento(d.id)} style={{ padding: '8px', cursor: 'pointer', background: '#fef2f2', border: 'none', borderRadius: '8px', color: '#ef4444' }} title="Eliminar Documento"><Trash2 size={16}/></button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
       )}
@@ -447,6 +660,14 @@ export default function AdminDetalleViaje() {
                         <div><label style={labelStyle}>Destino / Detalle</label><input required type="text" value={formServicio.destino} onChange={e=>setFormServicio({...formServicio, destino:e.target.value})} style={inputStyle} /></div>
                         <div><label style={labelStyle}>Clave (Opcional)</label><input type="text" value={formServicio.clave} onChange={e=>setFormServicio({...formServicio, clave:e.target.value})} style={inputStyle} /></div>
                     </div>
+
+                    {/* CAMPO DE VUELO CONDICIONAL */}
+                    {getNombreCategoria(formServicio.categoria).toLowerCase().includes('vuelo') && (
+                        <div>
+                            <label style={{...labelStyle, color: 'var(--primary-dark)'}}>Número de Vuelo (Tracker)</label>
+                            <input type="text" value={formServicio.numeroVuelo} onChange={e=>setFormServicio({...formServicio, numeroVuelo:e.target.value})} style={{...inputStyle, borderColor: 'var(--primary)', background: '#eff6ff'}} placeholder="Ej. AM405" />
+                        </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                         <div><label style={labelStyle}>Inicio</label><input type="datetime-local" value={formServicio.fechaInicio} onChange={e=>setFormServicio({...formServicio, fechaInicio:e.target.value})} style={inputStyle} /></div>
@@ -529,6 +750,8 @@ export default function AdminDetalleViaje() {
       {/* CONFIRMACION Y ALERTAS */}
       {confirmConfig.show && (<div style={modalOverlayStyle}><div style={{...modalContentStyle, maxWidth:'400px', textAlign:'center', padding:'30px'}}><AlertCircle size={40} color="#ef4444" style={{margin:'0 auto 10px'}}/><h3 style={{margin:'0 0 10px'}}>Confirmar acción</h3><p style={{color:'#64748b', marginBottom:'20px'}}>{confirmConfig.message}</p><div style={{display:'flex', gap:'10px'}}><button onClick={()=>setConfirmConfig({...confirmConfig, show:false})} style={{flex:1, padding:'10px', background:'white', border:'1px solid #ccc', borderRadius:'20px'}}>Cancelar</button><button onClick={confirmConfig.onConfirm} style={{flex:1, padding:'10px', background:'#ef4444', color:'white', border:'none', borderRadius:'20px'}}>Confirmar</button></div></div></div>)}
       {customAlert.show && (<div style={modalOverlayStyle}><div style={{...modalContentStyle, maxWidth:'400px', padding:'30px', textAlign:'center'}}><h3 style={{margin:0}}>{customAlert.title}</h3><p>{customAlert.msg}</p><button onClick={closeAlert} className="btn-primary" style={{marginTop:'15px'}}>OK</button></div></div>)}
+      
+      <FirstTripWizard currentStep="servicios" onOpenModal={() => setShowModalServicio(true)} />
     </div>
   );
 }

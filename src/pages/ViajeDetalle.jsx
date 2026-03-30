@@ -4,8 +4,10 @@ import { enviarPeticion } from '../services/api';
 import { useAuth } from '../context/AuthContext'; 
 import { 
   ArrowLeft, Calendar, MapPin, Hash, Plane, Hotel, Car, Utensils, Ticket, 
-  Wallet, TrendingUp, Tag, XCircle, Star, Clock, CheckCircle, MessageSquare
+  Wallet, TrendingUp, Tag, XCircle, Star, Clock, CheckCircle, MessageSquare, FileText
 } from 'lucide-react';
+import Loader from '../components/Loader';
+import FlightTracker from '../components/FlightTracker';
 
 export default function ViajeDetalle() {
   const { id } = useParams();
@@ -17,6 +19,7 @@ export default function ViajeDetalle() {
   const [viaje, setViaje] = useState(null);
   const [servicios, setServicios] = useState([]);
   const [transacciones, setTransacciones] = useState([]);
+  const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Catálogos para mapear IDs a Nombres
@@ -37,7 +40,10 @@ export default function ViajeDetalle() {
       ]);
 
       if (resInfo.exito) setViaje(resInfo.viaje);
-      if (resServicios.exito) setServicios(resServicios.datos);
+      if (resServicios.exito) {
+          setServicios(resServicios.datos);
+          if (resServicios.documentos) setDocumentos(resServicios.documentos);
+      }
       if (resFinanzas.exito) setTransacciones(resFinanzas.datos);
       if (resListas.exito && resListas.listas) setListas(resListas.listas);
 
@@ -106,8 +112,8 @@ export default function ViajeDetalle() {
 
   if (loading) {
     return (
-      <div className="dashboard-container" style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
-        <p>Cargando tu experiencia...</p>
+      <div className="dashboard-container">
+        <Loader message="Cargando tu experiencia..." />
       </div>
     );
   }
@@ -216,6 +222,21 @@ export default function ViajeDetalle() {
       {/* CONTENIDO: ITINERARIO */}
       {activeTab === 'itinerario' && (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            {/* DOCUMENTOS NO VINCULADOS A NINGUN SERVICIO */}
+            {documentos.filter(d => !d.idServicio).length > 0 && (
+                <div style={{ background: '#f8fafc', padding: '15px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '10px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}><FileText size={18} color="var(--primary)"/> Documentos Generales del Viaje</h4>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        {documentos.filter(d => !d.idServicio).map((d, i) => (
+                            <a key={i} href={d.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'white', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '50px', fontSize: '0.85rem', textDecoration: 'none', color: '#334155', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                <FileText size={14} color="var(--primary)"/> {d.nombre} <span style={{fontSize:'0.7rem', color:'#94a3b8'}}>({d.tipo})</span>
+                            </a>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {servicios.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '50px', background: 'white', borderRadius: '20px', border: '2px dashed #e2e8f0', color: '#94a3b8' }}>
                     <Plane size={40} style={{ marginBottom: '10px', opacity: 0.5 }} />
@@ -258,6 +279,13 @@ export default function ViajeDetalle() {
                                                 <Hash size={14} color="var(--primary)"/> Reserva: <span style={{ fontWeight: '600' }}>{s.clave}</span>
                                             </div>
                                         )}
+                                        {s.documentoUrl && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <a href={s.documentoUrl} target="_blank" rel="noreferrer" style={{display:'inline-flex', alignItems:'center', gap:'4px', background:'#eff6ff', color:'var(--primary-dark)', padding:'4px 10px', borderRadius:'8px', textDecoration:'none', fontWeight:'700', fontSize:'0.75rem'}}>
+                                                    <FileText size={12}/> Ver {s.documentos && s.documentos.length > 0 ? s.documentos[0].tipo : 'Documento'}
+                                                </a>
+                                            </div>
+                                        )}
                                     </div>
                                     
                                     <div style={{ marginTop: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '0.85rem', color: '#64748b' }}>
@@ -265,6 +293,11 @@ export default function ViajeDetalle() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* INTEGRACION FLIGHT TRACKER */}
+                            {getNombreCategoria(s.categoriaId).toLowerCase().includes('vuelo') && s.numeroVuelo && (
+                                <FlightTracker numeroVuelo={s.numeroVuelo} fechaInicio={s.fechaInicio} />
+                            )}
 
                             {/* MOSTRAR CALIFICACIÓN SI EXISTE (ACTUALIZADO) */}
                             {s.calificacion && (

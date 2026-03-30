@@ -8,9 +8,10 @@ import html2pdf from 'html2pdf.js';
 import SearchableSelect from '../../components/SearchableSelect';
 import {
   Wallet, Map, Users, ArrowRightCircle, Plane, Clock, User, Copy, Check, LayoutList, LayoutGrid, X,
-  FileText, Phone, Mail, MapPin, Flag, UserCheck, Calendar, CreditCard, Loader, Search,
-  Download, Printer, Pencil, Save, Plus, Trash2, Settings, AlertCircle, CheckCircle, Building, Filter
+  FileText, Phone, Mail, MapPin, Flag, UserCheck, Calendar, CreditCard, Loader as LoaderIcon, Search,
+  Download, Printer, Pencil, Save, Plus, Trash2, Settings,AlertCircle, CheckCircle, Building, Filter
 } from 'lucide-react';
+import Loader from '../../components/Loader';
 
 export default function ClientDashboard({ user }) {
   const navigate = useNavigate();
@@ -287,7 +288,7 @@ export default function ClientDashboard({ user }) {
     e.stopPropagation(); navigator.clipboard.writeText(getInviteUrl(t)); setCopiedId(id); setTimeout(()=>setCopiedId(null),3000);
   };
 
-  if (loading) return <div style={{textAlign:'center', padding:'50px', color:'#94a3b8'}}>Cargando...</div>;
+  if (loading) return <Loader message="Cargando información del cliente..." />;
   if (!data) return <div style={{textAlign:'center', padding:'50px', color:'#ef4444'}}>Error al cargar datos.</div>;
 
   // Lista de viajes (activos/historial) para vistas
@@ -424,7 +425,7 @@ export default function ClientDashboard({ user }) {
                     <span style={{fontSize:'0.75rem', fontWeight:'700', color: p.registrado ? '#10b981' : '#f59e0b'}}>{p.registrado ? 'Activo' : 'Pendiente'}</span>
                     {!p.registrado && (
                       <button onClick={(e)=> p.token ? handleCopyExistingLink(e, p.token, p.id) : handleGenerateLink(e, p.id)} style={{background:'white', border:'1px solid #e2e8f0', padding:'6px 12px', borderRadius:'20px', cursor:'pointer', display:'flex', gap:'5px', alignItems:'center', fontSize:'0.75rem', color:'var(--primary)', fontWeight:'700'}}>
-                        {generatingLinkId === p.id ? <Loader size={12} className="spin"/> : (copiedId === p.id ? <Check size={12}/> : <Copy size={12}/>) } Link
+                        {generatingLinkId === p.id ? <LoaderIcon size={12} className="spin"/> : (copiedId === p.id ? <Check size={12}/> : <Copy size={12}/>) } Link
                       </button>
                     )}
                   </div>

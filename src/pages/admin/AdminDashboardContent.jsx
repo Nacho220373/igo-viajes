@@ -4,13 +4,20 @@ import { useConfig } from '../../context/ConfigContext';
 import { enviarPeticion } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
+import Loader from '../../components/Loader';
+import FirstTripWizard from '../../components/FirstTripWizard';
 import SearchableSelect from '../../components/SearchableSelect';
 import {
   LogOut, Map as MapIcon, User as UserIcon, Calendar, ArrowRightCircle, LayoutGrid, List, Search, X,
   Users, UserCheck, Plane, Briefcase, TrendingUp, TrendingDown, Wallet, Bell, DollarSign, Clock,
   Plus, ChevronDown, ChevronUp, FileText, Download, Printer, Tag, Hotel, Car, Utensils, Ticket,
-  CheckSquare, Square, AlertCircle, CheckCircle, AlertTriangle, Calculator, Building, PieChart, CreditCard, Filter
+  CheckSquare, Square, AlertCircle, CheckCircle, AlertTriangle, Calculator, Building, PieChart, CreditCard, Filter,
+  ArrowUpRight, ArrowDownRight, Activity, Database, Trash2, Edit
 } from 'lucide-react';
+import BulkUploader from '../../components/BulkUploader';
+import AdminTour from '../../components/AdminTour';
+import HelpCenter from '../../components/HelpCenter';
+
 
 export default function AdminDashboardContent() {
   const { user, logout } = useAuth();
@@ -19,11 +26,20 @@ export default function AdminDashboardContent() {
 
   // === ESTADOS GENERALES ===
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuRef = useRef(null);
 
+  // === TOUR & SETUP ONBOARDING ===
+  const [runTour, setRunTour] = useState(false);
+  const [tourKeyNonce, setTourKeyNonce] = useState(0); // Para forzar el reinicio
+  const [showSetupModal, setShowSetupModal] = useState(false);
+
   // MODALES
+  const [showModalDesglose, setShowModalDesglose] = useState(false);
+  const [loadingDesglose, setLoadingDesglose] = useState(false);
+  const [desgloseConfig, setDesgloseConfig] = useState({ tipo: '', titulo: '', datos: [] });
   const [showModalTransaccion, setShowModalTransaccion] = useState(false);
   const [showModalSelectorEdoCta, setShowModalSelectorEdoCta] = useState(false);
   const [showModalReporte, setShowModalReporte] = useState(false);
@@ -33,6 +49,10 @@ export default function AdminDashboardContent() {
   const [selectedReportClients, setSelectedReportClients] = useState([]);
   const [selectedReportTrips, setSelectedReportTrips] = useState([]);
   const [filtroFechas, setFiltroFechas] = useState({ fechaInicio: '', fechaFin: '' });
+
+  // BULK UPLOAD
+  const [showModalBulk, setShowModalBulk] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // ALERTA
   const [customAlert, setCustomAlert] = useState({ show: false, title: '', msg: '', type: 'info' });
@@ -51,6 +71,13 @@ export default function AdminDashboardContent() {
     fecha: new Date().toISOString().split('T')[0]
   };
   const [formTransaccion, setFormTransaccion] = useState(formTransaccionInicial);
+  const [modoEdicionTransaccion, setModoEdicionTransaccion] = useState(false);
+  const [idTransaccionEditar, setIdTransaccionEditar] = useState(null);
+
+  // GESTOR DE TRANSACCIONES
+  const [showModalAdminTransacciones, setShowModalAdminTransacciones] = useState(false);
+  const [transaccionesList, setTransaccionesList] = useState([]);
+  const [loadingTransaccionesList, setLoadingTransaccionesList] = useState(false);
 
   // NUEVA CUENTA
   const [formCuenta, setFormCuenta] = useState({ nombre: '', tipo: 'Banco', banco: '', cuenta: '' });
@@ -82,13 +109,63 @@ export default function AdminDashboardContent() {
     if (formTransaccion.idViaje) { cargarDatosDelViaje(formTransaccion.idViaje); }
   }, [formTransaccion.idViaje]);
 
+  const dismissSetup = () => {
+    localStorage.setItem('igo_admin_setup_dismissed', 'true');
+    setShowSetupModal(false);
+  };
+
+  // Checar si debe correr el tour o mostrar el setup
+  useEffect(() => {
+    if (dashboardData && !loading) {
+      const tourSeen = localStorage.getItem('igo_admin_tour_seen');
+      const setupDismissed = localStorage.getItem('igo_admin_setup_dismissed');
+      const totalViajes = dashboardData?.listasRapidas?.viajes?.length || 0;
+
+      if (!tourSeen && !runTour) {
+        setRunTour(true);
+      } else if (tourSeen && totalViajes === 0 && !setupDismissed && !runTour) {
+        // Mostrar el setup SOLO si ya vió el tour, la base está vacía y el tour no corre
+        setShowSetupModal(true);
+      }
+    }
+  }, [dashboardData, loading, runTour]);
+
+  const handleFinishTour = () => {
+    setRunTour(false);
+    
+    // Verificación "Zero-State"
+    const totalViajes = dashboardData?.listasRapidas?.viajes?.length || 0;
+    const setupDismissed = localStorage.getItem('igo_admin_setup_dismissed');
+    
+    if (totalViajes === 0 && !setupDismissed) {
+      setTimeout(() => setShowSetupModal(true), 500); // Pequeño retraso fluido
+    }
+  };
+
   const cargarDashboardAdmin = async () => {
-    setLoading(true);
+    const cacheKey = 'igo_cache_dashboard_admin';
+    const cacheData = sessionStorage.getItem(cacheKey);
+    
+    if (cacheData) {
+      setDashboardData(JSON.parse(cacheData));
+      setLoading(false);
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const respuesta = await enviarPeticion({ accion: 'obtenerDashboardAdmin' });
-      if (respuesta.exito) setDashboardData(respuesta.datos);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      if (respuesta.exito) {
+        setDashboardData(respuesta.datos);
+        sessionStorage.setItem(cacheKey, JSON.stringify(respuesta.datos));
+      }
+    } catch (e) { 
+      console.error(e); 
+    } finally { 
+      setLoading(false); 
+      setIsRefreshing(false);
+    }
   };
 
   const cargarListasCompletas = async () => {
@@ -131,15 +208,66 @@ export default function AdminDashboardContent() {
   const showAlert = (title, msg, type = 'info') => setCustomAlert({ show: true, title, msg, type });
   const closeAlert = () => setCustomAlert({ ...customAlert, show: false });
 
+  const abrirDesglose = async (tipo, titulo) => {
+    setShowModalDesglose(true);
+    setLoadingDesglose(true);
+    setDesgloseConfig({ tipo, titulo, datos: [] });
+    
+    try {
+        const res = await enviarPeticion({ accion: 'obtenerDesgloseKpi', tipo: tipo });
+        if (res.exito) {
+            setDesgloseConfig({ tipo, titulo, datos: res.datos });
+        } else {
+            showAlert("Error", "No se pudo cargar el desglose: " + (res.error || "Error desconocido"), "error");
+            setShowModalDesglose(false);
+        }
+    } catch (error) {
+        showAlert("Error", "Error de red al cargar el desglose", "error");
+        setShowModalDesglose(false);
+    }
+    setLoadingDesglose(false);
+  };
+
   const handleMenuOption = (ruta, accionEspecial = null) => {
     setShowAddMenu(false);
     if (accionEspecial === 'transaccion') {
-      setFormTransaccion(formTransaccionInicial); setSelectedServiciosFinanza([]); setAplicaIVA(false); setTasaIVA(16); setShowModalTransaccion(true);
+      setModoEdicionTransaccion(false); setIdTransaccionEditar(null); setFormTransaccion(formTransaccionInicial); setSelectedServiciosFinanza([]); setAplicaIVA(false); setTasaIVA(16); setShowModalTransaccion(true);
+    }
+    else if (accionEspecial === 'transacciones') {
+      abrirGestorTransacciones();
     }
     else if (accionEspecial === 'edocta') {
       setSelectedReportClients([]); setSelectedReportTrips([]); setFiltroFechas({fechaInicio:'', fechaFin:''}); setShowModalSelectorEdoCta(true);
     }
+    else if (accionEspecial === 'bulk') {
+      setShowModalBulk(true);
+    }
     else navigate(ruta, { state: { openCreate: true } });
+  };
+
+  const handleUploadMasivo = async (parsedData, validationErrors) => {
+    setIsUploading(true);
+    const payload = {
+        accion: 'procesarUploadMasivo',
+        datos: parsedData,
+        erroresIgnorados: validationErrors // Backend no necesita los errores formales, pero está bien pasarlos. Se enviarán solo los limpios.
+    };
+
+    try {
+        const respuesta = await enviarPeticion(payload);
+        if (respuesta.exito) {
+            showAlert("Éxito", respuesta.mensaje, "success");
+            setShowModalBulk(false);
+            cargarDashboardAdmin();
+            cargarListasCompletas();
+        } else {
+            showAlert("Error", "Error al procesar la subida: " + respuesta.error, "error");
+        }
+    } catch (error) {
+        showAlert("Error", "Error de red durante la carga masiva.", "error");
+    } finally {
+        setIsUploading(false);
+    }
   };
 
   // Utilidades
@@ -316,17 +444,82 @@ export default function AdminDashboardContent() {
   const handleGuardarTransaccion = async (e) => {
     e.preventDefault();
     if (formTransaccion.tipo !== '2' && !formTransaccion.idCliente) {
-      return showAlert("Faltan datos", "Selecciona un cliente para este ingreso", "warning");
+      return showAlert("Faltan datos", "Selecciona un cliente para este movimiento", "warning");
     }
     setProcesando(true);
     const subtotal = parseFloat(formTransaccion.monto) || 0;
     const montoIVA = aplicaIVA ? (subtotal * (parseFloat(tasaIVA) / 100)) : 0;
     const total = subtotal + montoIVA;
     const transaccionEnviar = { ...formTransaccion, aplicaIVA, tasaIVA: aplicaIVA ? tasaIVA : 0, subtotal, montoIVA, monto: total, idServicio: selectedServiciosFinanza.length > 0 ? selectedServiciosFinanza : '' };
-    const respuesta = await enviarPeticion({ accion: 'registrarTransaccion', transaccion: transaccionEnviar });
-    if(respuesta.exito) { setShowModalTransaccion(false); setFormTransaccion(formTransaccionInicial); setSelectedServiciosFinanza([]); setAplicaIVA(false); cargarDashboardAdmin(); showAlert("Éxito", "Movimiento registrado correctamente", "success"); }
+    
+    if (modoEdicionTransaccion) {
+       transaccionEnviar.idTransaccion = idTransaccionEditar;
+    }
+    const accionApi = modoEdicionTransaccion ? 'editarTransaccion' : 'registrarTransaccion';
+    
+    const respuesta = await enviarPeticion({ accion: accionApi, transaccion: transaccionEnviar, rol: user?.rolBase });
+    if(respuesta.exito) { 
+       setShowModalTransaccion(false); setFormTransaccion(formTransaccionInicial); setSelectedServiciosFinanza([]); setAplicaIVA(false); 
+       cargarDashboardAdmin(); 
+       if (showModalAdminTransacciones) abrirGestorTransacciones();
+       showAlert("Éxito", respuesta.mensaje || "Movimiento registrado correctamente", "success"); 
+    }
     else { showAlert("Error", "Error: " + respuesta.error, "error"); }
     setProcesando(false);
+  };
+
+  const abrirGestorTransacciones = async () => {
+    setShowModalAdminTransacciones(true);
+    setLoadingTransaccionesList(true);
+    const res = await enviarPeticion({ accion: 'obtenerTodasTransacciones', rol: user?.rolBase });
+    if (res.exito) {
+        setTransaccionesList(res.datos || []);
+    } else {
+        showAlert("Error", res.error, "error");
+    }
+    setLoadingTransaccionesList(false);
+  };
+
+  const handleEditarTransaccionClick = (t) => {
+    setModoEdicionTransaccion(true);
+    setIdTransaccionEditar(t.idTransaccion);
+    setAplicaIVA(t.aplicaIVA || false);
+    setTasaIVA(t.tasaIVA || 16);
+    
+    let montoMostrar = t.monto;
+    if (t.aplicaIVA && t.tasaIVA > 0) {
+        montoMostrar = t.monto / (1 + (t.tasaIVA/100));
+    }
+
+    setFormTransaccion({
+      tipo: String(t.tipo),
+      formaPago: t.formaPago,
+      monto: montoMostrar,
+      moneda: t.moneda || '1',
+      concepto: t.concepto || '',
+      idCliente: t.idCliente,
+      idViaje: t.idViaje || '',
+      idProveedor: t.idProveedor || '',
+      noFactura: t.noFactura || '',
+      idCuentaEmpresa: t.idCuentaEmpresa || '',
+      fecha: t.fecha,
+      idServicio: t.idServicio || ''
+    });
+    setShowModalTransaccion(true);
+  };
+
+  const eliminarTransaccionSeleccionada = async (idT) => {
+    if (!window.confirm("¿Estás seguro de eliminar esta transacción permanentemente?")) return;
+    setLoadingTransaccionesList(true);
+    const res = await enviarPeticion({ accion: 'eliminarTransaccion', idTransaccion: idT, rol: user?.rolBase });
+    if (res.exito) {
+        abrirGestorTransacciones();
+        cargarDashboardAdmin();
+        showAlert("Éxito", "Transacción eliminada", "success");
+    } else {
+        showAlert("Error", res.error, "error");
+        setLoadingTransaccionesList(false);
+    }
   };
 
   const handleGuardarCuenta = async (e) => {
@@ -348,17 +541,30 @@ export default function AdminDashboardContent() {
     <div className="dashboard-container" style={{ paddingTop: '80px' }}>
       {/* HEADER */}
       <div className="header-flexible">
-        <div><h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--primary-dark)', fontWeight: '800' }}>Panel de Control</h1><p style={{ margin: '5px 0 0', color: '#64748b' }}>Vista Administrativa</p></div>
+        <div>
+          <h1 className="tour-header" style={{ margin: 0, fontSize: '2rem', color: 'var(--primary-dark)', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '15px' }}>
+            Panel de Control
+            {isRefreshing && (
+              <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.8 }}>
+                <Activity size={20} className="spin-animation" color="var(--primary)"/> <span style={{fontSize:'0.8rem'}}>Actualizando...</span>
+              </span>
+            )}
+          </h1>
+          <p style={{ margin: '5px 0 0', color: '#64748b' }}>Vista Administrativa</p>
+        </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <div className="action-container" style={{ position: 'relative' }} ref={addMenuRef}>
-            <button onClick={() => setShowAddMenu(!showAddMenu)} style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '50px', cursor: 'pointer', fontWeight: '700', display:'flex', gap:'8px', alignItems:'center', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.3)' }}><Plus size={18}/> Acciones {showAddMenu ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>
+            <button className="tour-btn-acciones" onClick={() => setShowAddMenu(!showAddMenu)} style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '50px', cursor: 'pointer', fontWeight: '700', display:'flex', gap:'8px', alignItems:'center', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.3)' }}><Plus size={18}/> Acciones {showAddMenu ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>
             {showAddMenu && (
               <div className="dropdown-menu-responsive">
                 <div onClick={() => handleMenuOption('/admin/viajes')} style={menuItemStyle}><Plane size={18} color="var(--primary)"/> Nuevo Viaje</div>
+                <div onClick={() => handleMenuOption('/admin/cotizaciones')} style={menuItemStyle}><FileText size={18} color="var(--primary)"/> Nueva Cotización</div>
                 <div onClick={() => handleMenuOption('/admin/clientes')} style={menuItemStyle}><Users size={18} color="var(--primary)"/> Nuevo Cliente</div>
                 <div onClick={() => handleMenuOption('/admin/pasajeros')} style={menuItemStyle}><UserCheck size={18} color="var(--primary)"/> Nuevo Pasajero</div>
                 <div onClick={() => handleMenuOption('/admin/proveedores')} style={menuItemStyle}><Briefcase size={18} color="var(--primary)"/> Nuevo Proveedor</div>
                 <div style={{height:'1px', background:'#f1f5f9', margin:'6px 0'}}></div>
+                <div onClick={() => handleMenuOption(null, 'bulk')} style={{...menuItemStyle, color:'#8b5cf6'}}><Database size={18}/> Carga Masiva (Excel)</div>
+                <div onClick={() => handleMenuOption(null, 'transacciones')} style={{...menuItemStyle, color:'#f59e0b'}}><List size={18}/> Ver Transacciones</div>
                 <div onClick={() => handleMenuOption(null, 'transaccion')} style={{...menuItemStyle, color:'#16a34a'}}><DollarSign size={18}/> Registrar Transacción</div>
                 <div onClick={() => handleMenuOption(null, 'edocta')} style={{...menuItemStyle, color:'#2563eb'}}><FileText size={18}/> Estado de Cuenta</div>
               </div>
@@ -367,74 +573,124 @@ export default function AdminDashboardContent() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '30px' }}>
+      <div className="tour-accesos-rapidos" style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '30px' }}>
+        <QuickAccessCard icon={<PieChart size={22} />} title="Cotizaciones" onClick={() => navigate('/admin/cotizaciones')} color="#f59e0b" />
+        <QuickAccessCard icon={<Plane size={22} />} title="Viajes" onClick={() => navigate('/admin/viajes')} color="#2563eb" />
         <QuickAccessCard icon={<Users size={22} />} title="Clientes" onClick={() => navigate('/admin/clientes')} color="var(--primary-dark)" />
         <QuickAccessCard icon={<UserCheck size={22} />} title="Pasajeros" onClick={() => navigate('/admin/pasajeros')} color="#0f766e" />
-        <QuickAccessCard icon={<Plane size={22} />} title="Viajes" onClick={() => navigate('/admin/viajes')} color="#2563eb" />
         <QuickAccessCard icon={<Briefcase size={22} />} title="Proveedores" onClick={() => navigate('/admin/proveedores')} color="#ca8a04" />
       </div>
 
-      {loading || !dashboardData ? <div style={{textAlign:'center', padding:'40px', color:'#94a3b8'}}>Cargando métricas...</div> : (
+      {loading || !dashboardData ? <Loader message="Analizando métricas financieras..." /> : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-            <BalanceCard title="Ingresos Totales" amount={dashboardData.balance.ingresos} icon={<TrendingUp size={24}/>} color="#16a34a" bg="#ecfdf5" />
-            <BalanceCard title="Egresos Totales" amount={dashboardData.balance.egresos} icon={<TrendingDown size={24}/>} color="#ef4444" bg="#fef2f2" />
-            <div style={{ background: 'var(--primary-gradient)', padding: '24px', borderRadius: '24px', color: 'white', boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.4)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', opacity: 0.9 }}><Wallet size={24} /> <span style={{ fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase' }}>Utilidad Neta</span></div>
-              <div style={{ fontSize: '2.2rem', fontWeight: '800' }}>${dashboardData.balance.utilidad.toLocaleString()}</div>
-            </div>
+          <div className="tour-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+             <BalanceCard onClick={() => abrirDesglose('ingresos', 'Desglose de Ingresos')} title="Ingresos" amount={dashboardData.balance.ingresos} icon={<ArrowUpRight size={24}/>} color="#16a34a" bg="#ecfdf5" />
+             <BalanceCard onClick={() => abrirDesglose('egresos', 'Desglose de Egresos')} title="Egresos" amount={dashboardData.balance.egresos} icon={<ArrowDownRight size={24}/>} color="#ef4444" bg="#fef2f2" />
+             
+             <div onClick={() => abrirDesglose('cxc', 'Desglose de Cuentas por Cobrar (CXC)')} style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'box-shadow 0.2s' }} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                <div style={{ position: 'absolute', right: '-20px', top: '-20px', background: '#eff6ff', width: '100px', height: '100px', borderRadius: '50%', opacity: 0.5 }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                    <div style={{ background: '#eff6ff', padding: '8px', borderRadius: '10px', color: '#2563eb' }}><Wallet size={24} /></div>
+                    <span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem' }}>CXC (Cuentas por Cobrar)</span>
+                </div>
+                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: dashboardData.balance.cxc > 0 ? '#f59e0b' : '#10b981' }}>${(dashboardData.balance.cxc || 0).toLocaleString()}</div>
+             </div>
+
+             <div onClick={() => abrirDesglose('cxp', 'Desglose de Cuentas por Pagar (CXP)')} style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'box-shadow 0.2s' }} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                <div style={{ position: 'absolute', right: '-20px', top: '-20px', background: '#fef2f2', width: '100px', height: '100px', borderRadius: '50%', opacity: 0.5 }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                    <div style={{ background: '#fef2f2', padding: '8px', borderRadius: '10px', color: '#ef4444' }}><Calendar size={24} /></div>
+                    <span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem' }}>CXP (Cuentas por Pagar)</span>
+                </div>
+                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: dashboardData.balance.cxp > 0 ? '#ef4444' : '#10b981' }}>${(dashboardData.balance.cxp || 0).toLocaleString()}</div>
+             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '25px' }}>
-            <div className="dashboard-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'10px' }}><Plane size={20} color="var(--primary)"/> Viajes Activos</h3>
-                <span style={{ background: '#eff6ff', color: 'var(--primary)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>{dashboardData.viajesActivos.length}</span>
-              </div>
-              {dashboardData.viajesActivos.length === 0 ? <p style={{color:'#94a3b8', textAlign:'center'}}>No hay viajes en curso.</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {dashboardData.viajesActivos.map(v => (
-                    <div key={v.id} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                      <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '1rem' }}>{v.nombre}</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', fontSize: '0.85rem', color: '#64748b' }}>
-                        <span>{v.cliente}</span>
-                        <span style={{ color: v.diasRestantes < 3 ? '#ef4444' : '#10b981', fontWeight: '600' }}>{v.diasRestantes > 0 ? `Termina en ${v.diasRestantes} días` : 'Termina hoy'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', marginBottom: '25px' }}>
+             
+             {/* PRIMERA FILA: FLUJO Y SERVICIOS */}
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '25px', alignItems: 'start' }}>
+             {/* PANEL FLUJO NETO Y GRÁFICA */}
+             <div style={{ background: 'var(--primary-gradient)', padding: '24px', borderRadius: '24px', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.4)' }}>
+               <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px', opacity: 0.9 }}><TrendingUp size={20} /> <span style={{ fontWeight: '700', fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Flujo Libre Anualizado</span></div>
+                  <div style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '-1px' }}>${(dashboardData.balance.utilidad || 0).toLocaleString()}</div>
+               </div>
+               
+               <div style={{ marginTop: '20px', background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                     <div style={{ fontSize: '0.8rem', opacity: 0.8, fontWeight: '600' }}>Venta Total Proyectada</div>
+                     <div style={{ fontSize: '1.2rem', fontWeight: '800' }}>${(dashboardData.balance.ventaTotal || 0).toLocaleString()}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                     <div style={{ fontSize: '0.8rem', opacity: 0.8, fontWeight: '600' }}>Costo Proveedores Proyectado</div>
+                     <div style={{ fontSize: '1.2rem', fontWeight: '800' }}>${(dashboardData.balance.costoTotal || 0).toLocaleString()}</div>
+                  </div>
+               </div>
+             </div>
 
-            <div className="dashboard-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}><h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'10px' }}><Bell size={20} color="#f59e0b"/> Próximos Servicios</h3><span style={{ background: '#fffbeb', color: '#f59e0b', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>3 horas</span></div>
-              {dashboardData.recordatorios.length === 0 ? <p style={{color:'#94a3b8', textAlign:'center'}}>Sin servicios próximos.</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {dashboardData.recordatorios.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                      <div style={{ background: '#f1f5f9', padding: '8px', borderRadius: '10px', minWidth:'40px', textAlign:'center' }}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8' }}>ID</div>
-                        <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>{r.idServicio}</div>
+             {/* PANEL ALERTAS DE SERVICIOS */}
+             <div className="dashboard-card tour-alertas-servicios" style={{ padding: '24px', display:'flex', flexDirection:'column', height: 'auto', maxHeight: '350px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'10px' }}><Bell size={20} color="#f59e0b"/> Próximos Servicios</h3>
+                <span style={{ background: '#fffbeb', color: '#f59e0b', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700' }}>{dashboardData.recordatorios.length}</span>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {dashboardData.recordatorios.length === 0 ? <p style={{color:'#94a3b8', textAlign:'center', marginTop:'30px'}}>Sin servicios próximos.</p> : (
+                    dashboardData.recordatorios.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#f8fafc', padding: '12px', borderRadius: '12px', transition:'background 0.2s', cursor:'pointer' }} onMouseEnter={e=>e.currentTarget.style.background='#f1f5f9'} onMouseLeave={e=>e.currentTarget.style.background='#f8fafc'} onClick={() => navigate('/admin/viajes#v'+r.idViaje)}>
+                        <div style={{ background: 'white', padding: '8px', borderRadius: '50%', boxShadow:'0 2px 4px rgba(0,0,0,0.05)' }}>
+                          <Clock size={16} color="var(--primary)"/>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.9rem' }}>{r.categoria === 1 ? 'Vuelo' : 'Tours/Hotel'} a {r.destino}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>A las {r.fecha}</div>
+                        </div>
+                        <ArrowRightCircle size={16} color="#cbd5e1"/>
                       </div>
-                      <div>
-                        <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{r.categoria === 1 ? 'Vuelo' : 'Servicio'} a {r.destino}</div>
-                        <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}><Clock size={12}/> Hora: {r.fecha}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))
+                )}
+              </div>
+             </div>
+             </div>
+
+             {/* SEGUNDA FILA: MONITOR DE VIAJES */}
+             <div style={{ display: 'block' }}>
+             <div className="dashboard-card tour-monitor-viajes" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display:'flex', alignItems:'center', gap:'10px' }}><Plane size={20} color="var(--primary)"/> Monitor de Viajes en Curso</h3>
+                <button onClick={() => navigate('/admin/viajes')} style={{ background: 'transparent', border:'none', color:'var(--primary)', fontWeight:'700', cursor:'pointer', fontSize:'0.9rem' }}>Ver todos</button>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', alignItems: 'stretch' }}>
+                  {dashboardData.viajesActivos.length === 0 ? <div style={{width:'100%', padding:'30px', background:'#f8fafc', borderRadius:'16px', textAlign:'center', color:'#94a3b8'}}>No hay viajes activos en este momento.</div> : (
+                      dashboardData.viajesActivos.map(v => (
+                        <div key={v.id} onClick={() => navigate(`/admin/viaje/${v.id}`)} style={{ minWidth: '280px', flexShrink: 0, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', position: 'relative', overflow: 'hidden', display:'flex', flexDirection:'column', cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => {e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.05)'; e.currentTarget.style.borderColor='var(--primary)'}} onMouseLeave={e => {e.currentTarget.style.boxShadow='none'; e.currentTarget.style.borderColor='#e2e8f0'}}>
+                           <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: v.diasRestantes < 3 ? '#ef4444' : '#3b82f6' }}></div>
+                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                              <div style={{ fontSize: '0.75rem', fontWeight: '800', color: v.diasRestantes < 3 ? '#ef4444' : '#3b82f6', background: v.diasRestantes < 3 ? '#fef2f2' : '#eff6ff', padding: '4px 8px', borderRadius: '8px' }}>{v.diasRestantes > 0 ? `En ${v.diasRestantes} días` : 'HOY'}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '600' }}>VIAJE #{v.id}</div>
+                           </div>
+                           <div style={{ fontWeight: '800', color: 'var(--primary-dark)', fontSize: '1.2rem', marginBottom: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.nombre}</div>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#64748b', fontSize: '0.9rem', flex: 1, marginBottom: '5px' }}>
+                              <UserIcon size={14}/> <span>{v.cliente}</span>
+                           </div>
+                        </div>
+                      ))
+                  )}
+              </div>
             </div>
+             </div>
           </div>
         </>
       )}
 
       {/* MODALES TRANSACCIÓN / CUENTA / SELECTOR / REPORTE / ALERTAS */}
       {showModalTransaccion && (
-        <div style={modalOverlayStyle}>
+        <div style={{...modalOverlayStyle, zIndex: 10050}}>
           <div style={{...modalContentStyle, maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column'}}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Registrar Movimiento</h2>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>{modoEdicionTransaccion ? 'Editar Movimiento' : 'Registrar Movimiento'}</h2>
               <button onClick={() => setShowModalTransaccion(false)} style={closeBtnStyle}><X size={18}/></button>
             </div>
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
@@ -528,7 +784,7 @@ export default function AdminDashboardContent() {
                         options={dashboardData?.listasRapidas?.viajes || []}
                         value={formTransaccion.idViaje} 
                         onChange={(val) => setFormTransaccion({...formTransaccion, idViaje: val})}
-                        placeholder="Buscar Viaje/Expediente..."
+                        placeholder="Buscar Viaje..."
                     />
                 </div>
 
@@ -576,14 +832,29 @@ export default function AdminDashboardContent() {
               </form>
             </div>
             <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
-              <button type="submit" form="form-transaccion" className="btn-primary" disabled={procesando}>{procesando ? '...' : 'Registrar'}</button>
+              <button type="submit" form="form-transaccion" className="btn-primary" disabled={procesando}>{procesando ? 'Guardando...' : (modoEdicionTransaccion ? 'Actualizar' : 'Registrar')}</button>
             </div>
           </div>
         </div>
       )}
 
-      {showModalAddCuenta && (
+      {/* MODAL BULK UPLOAD */}
+      {showModalBulk && (
         <div style={modalOverlayStyle}>
+           <div style={{...modalContentStyle, maxWidth: '800px', padding: 0, overflow: 'hidden'}}>
+               <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Importación Masiva Integrada</h2>
+                  <button onClick={() => setShowModalBulk(false)} style={closeBtnStyle}><X size={18}/></button>
+               </div>
+               <div style={{ padding: '24px', maxHeight: '80vh', overflowY: 'auto', background: '#f8fafc' }}>
+                  <BulkUploader onUpload={handleUploadMasivo} isProcessing={isUploading} />
+               </div>
+           </div>
+        </div>
+      )}
+
+      {showModalAddCuenta && (
+        <div style={{...modalOverlayStyle, zIndex: 10060}}>
           <div style={{...modalContentStyle, maxWidth:'400px', height:'auto', overflow:'visible'}}>
             <div style={{padding:'20px', borderBottom:'1px solid #e2e8f0', display:'flex', justifyContent:'space-between'}}>
               <h3 style={{margin:0}}>Nueva Cuenta</h3>
@@ -755,13 +1026,188 @@ export default function AdminDashboardContent() {
         </div>
       )}
 
+      {showModalDesglose && (
+          <div style={modalOverlayStyle}>
+              <div style={{ ...modalContentStyle, maxWidth: '900px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}>
+                  <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+                      <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.2rem' }}>{desgloseConfig.titulo}</h3>
+                      <button onClick={() => setShowModalDesglose(false)} style={closeBtnStyle}><X size={18} /></button>
+                  </div>
+                  <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
+                      {loadingDesglose ? (
+                          <Loader message="Cargando desglose..." />
+                      ) : (
+                          desgloseConfig.datos.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>No hay registros para este rubro.</div>
+                          ) : (
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                  <thead>
+                                      <tr style={{ background: '#f1f5f9', color: '#64748b' }}>
+                                          {(desgloseConfig.tipo === 'ingresos' || desgloseConfig.tipo === 'egresos') ? (
+                                              <>
+                                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Fecha</th>
+                                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Concepto</th>
+                                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>{desgloseConfig.tipo === 'ingresos' ? 'Cliente' : 'Proveedor'}</th>
+                                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Referencia (Viaje)</th>
+                                                  <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Monto</th>
+                                              </>
+                                          ) : (
+                                              <>
+                                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Referencia (Viaje)</th>
+                                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Cliente Asignado</th>
+                                                  <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>{desgloseConfig.tipo === 'cxc' ? 'Estimado / Facturado' : 'A Pagar (Proveedores)'}</th>
+                                                  <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>{desgloseConfig.tipo === 'cxc' ? 'Cobrado' : 'Pagado'}</th>
+                                                  <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Pendiente por {desgloseConfig.tipo === 'cxc' ? 'Cobrar' : 'Pagar'}</th>
+                                              </>
+                                          )}
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      {desgloseConfig.datos.map((row, i) => (
+                                          <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                              {(desgloseConfig.tipo === 'ingresos' || desgloseConfig.tipo === 'egresos') ? (
+                                                  <>
+                                                      <td style={{ padding: '10px' }}>{row.fecha}</td>
+                                                      <td style={{ padding: '10px', fontWeight: '600' }}>{row.concepto}</td>
+                                                      <td style={{ padding: '10px' }}>{row.entidad}</td>
+                                                      <td style={{ padding: '10px', color: '#64748b' }}>{row.viaje}</td>
+                                                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700', color: desgloseConfig.tipo === 'ingresos' ? '#16a34a' : '#ef4444' }}>${row.monto.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                  </>
+                                              ) : (
+                                                  <>
+                                                      <td style={{ padding: '10px', fontWeight: '600' }}>{row.viaje}</td>
+                                                      <td style={{ padding: '10px' }}>{row.cliente}</td>
+                                                      <td style={{ padding: '10px', textAlign: 'right', color: '#64748b' }}>${row.presupuestado.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                      <td style={{ padding: '10px', textAlign: 'right', color: '#64748b' }}>${row.pagado.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', color: desgloseConfig.tipo === 'cxc' ? '#f59e0b' : '#ef4444' }}>${row.saldo.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                  </>
+                                              )}
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                                  <tfoot>
+                                      <tr style={{ background: '#f8fafc', fontWeight: '800' }}>
+                                          {(desgloseConfig.tipo === 'ingresos' || desgloseConfig.tipo === 'egresos') ? (
+                                              <>
+                                                  <td colSpan="4" style={{ padding: '15px 10px', textAlign: 'right' }}>TOTAL DEL DESGLOSE:</td>
+                                                  <td style={{ padding: '15px 10px', textAlign: 'right', color: desgloseConfig.tipo === 'ingresos' ? '#16a34a' : '#ef4444' }}>${desgloseConfig.datos.reduce((acc, r) => acc + r.monto, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                              </>
+                                          ) : (
+                                              <>
+                                                  <td colSpan="4" style={{ padding: '15px 10px', textAlign: 'right' }}>TOTAL PENDIENTE (CXC/CXP):</td>
+                                                  <td style={{ padding: '15px 10px', textAlign: 'right', color: desgloseConfig.tipo === 'cxc' ? '#f59e0b' : '#ef4444' }}>${desgloseConfig.datos.reduce((acc, r) => acc + r.saldo, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                              </>
+                                          )}
+                                      </tr>
+                                  </tfoot>
+                              </table>
+                          )
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {showModalAdminTransacciones && (
+        <div style={modalOverlayStyle}>
+          <div style={{...modalContentStyle, maxWidth: '1000px', maxHeight: '90vh', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}><List size={20} color="var(--primary)"/> Gestor de Transacciones</h2>
+              <button onClick={() => setShowModalAdminTransacciones(false)} style={closeBtnStyle}><X size={18}/></button>
+            </div>
+            <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+              {loadingTransaccionesList ? (
+                <Loader message="Cargando transacciones..." />
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                     <tr style={{ background: '#f1f5f9', color: '#64748b' }}>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Fecha</th>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Concepto</th>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Entidad</th>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Viaje</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Monto</th>
+                        <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>Acciones</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                    {transaccionesList.length === 0 ? <tr><td colSpan="6" style={{textAlign:'center', padding:'20px', color:'#94a3b8'}}>No hay transacciones guardadas.</td></tr> : transaccionesList.map(t => (
+                        <tr key={t.idTransaccion} style={{ borderBottom: '1px solid #e2e8f0', background: 'white', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background='#f8fafc'} onMouseLeave={e => e.currentTarget.style.background='white'}>
+                           <td style={{ padding: '10px' }}>{t.fecha}</td>
+                           <td style={{ padding: '10px', fontWeight: '600' }}>
+                              {t.concepto} <br/>
+                              <span style={{ fontSize:'0.75rem', color:'#94a3b8', fontWeight:'normal' }}>Cuenta: {t.idCuentaEmpresa ? (listasFinancieras.cuentasEmpresa?.find(c=>c.id==t.idCuentaEmpresa)?.nombre || t.idCuentaEmpresa) : 'General'}</span>
+                           </td>
+                           <td style={{ padding: '10px', color: '#475569' }}>{t.tipo == 2 ? t.nombreProveedor : t.nombreCliente}</td>
+                           <td style={{ padding: '10px', color: '#64748b' }}>{t.nombreViaje !== 'General' ? t.nombreViaje : '-'}</td>
+                           <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', color: (t.tipo == 2 ? '#ef4444' : '#16a34a') }}>${t.monto.toLocaleString(undefined, {minimumFractionDigits: 2})} {t.nombreMoneda}</td>
+                           <td style={{ padding: '10px', textAlign: 'center' }}>
+                              {user?.rolBase === 'Administrador' ? (
+                                <div style={{display:'flex', gap:'5px', justifyContent:'center'}}>
+                                   <button onClick={() => handleEditarTransaccionClick(t)} style={{background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'8px', padding:'6px', color:'#2563eb', cursor:'pointer'}} title="Editar"><Edit size={16}/></button>
+                                   <button onClick={() => eliminarTransaccionSeleccionada(t.idTransaccion)} style={{background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'8px', padding:'6px', color:'#ef4444', cursor:'pointer'}} title="Eliminar"><Trash2 size={16}/></button>
+                                </div>
+                              ) : (
+                                <span style={{fontSize:'0.75rem', color:'#94a3b8'}}>Sólo visualización</span>
+                              )}
+                           </td>
+                        </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {customAlert.show && (<div style={modalOverlayStyle}><div style={{...modalContentStyle, maxWidth:'400px', textAlign:'center', padding:'30px', maxHeight:'auto', overflowY:'visible'}}><div style={{ margin: '0 auto 20px', width: '60px', height: '60px', borderRadius: '50%', background: customAlert.type === 'warning' ? '#fffbeb' : (customAlert.type === 'success' ? '#ecfdf5' : '#fef2f2'), color: customAlert.type === 'warning' ? '#f59e0b' : (customAlert.type === 'success' ? '#10b981' : '#ef4444'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{customAlert.type === 'warning' ? <AlertTriangle size={32} /> : (customAlert.type === 'success' ? <CheckCircle size={32} /> : <AlertCircle size={32} />)}</div><h3 style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontSize: '1.4rem', fontWeight: '800' }}>{customAlert.title}</h3><p style={{ margin: '0 0 25px', color: '#64748b', fontSize: '1rem', lineHeight: '1.5' }}>{customAlert.msg}</p><button onClick={closeAlert} className="btn-primary" style={{ width: '100%', background: customAlert.type === 'warning' ? '#f59e0b' : (customAlert.type === 'success' ? '#10b981' : '#ef4444'), border: 'none' }}>Entendido</button></div></div>)}
+
+      {/* SETUP ONBOARDING MODAL */}
+      {showSetupModal && (
+        <div style={modalOverlayStyle}>
+          <div style={{ ...modalContentStyle, maxWidth: '500px', padding: '30px', textAlign: 'center' }}>
+            <div style={{ margin: '0 auto 20px', width: '70px', height: '70px', borderRadius: '50%', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Plane size={36} />
+            </div>
+            <h2 style={{ margin: '0 0 10px', fontSize: '1.6rem', color: 'var(--primary-dark)' }}>¡Bienvenido a IGO Viajes!</h2>
+            <p style={{ margin: '0 0 25px', color: '#64748b', fontSize: '1rem', lineHeight: '1.5' }}>
+              Parece que tu sistema está limpiecito. <b>¿Quieres que te guíe en tu configuración inicial?</b> Dime si tienes ya un archivo de excel lleno de viajes o si prefieres registrar el primero a mano.
+            </p>
+            <div style={{ display: 'grid', gap: '15px' }}>
+              <button onClick={() => { dismissSetup(); setShowModalBulk(true); }} style={{ padding: '15px', border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left' }} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(37, 99, 235, 0.1)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                <div style={{ background: 'white', padding: '10px', borderRadius: '12px', color: '#2563eb', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}><Database size={24}/></div>
+                <div>
+                  <div style={{ fontWeight: '800', color: '#1e40af', fontSize: '1.05rem', marginBottom: '2px' }}>Importar por Excel</div>
+                  <div style={{ fontSize: '0.85rem', color: '#60a5fa' }}>Tengo varios viajes, clientes o pasajeros en tablas.</div>
+                </div>
+              </button>
+              <button onClick={() => { 
+                  dismissSetup(); 
+                  localStorage.setItem('igo_first_trip_wizard', JSON.stringify({ active: true, step: 'proveedores' }));
+                  navigate('/admin/proveedores'); 
+              }} style={{ padding: '15px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left' }} onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)'} onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '12px', color: '#64748b', border: '1px solid #e2e8f0' }}><Plus size={24}/></div>
+                <div>
+                  <div style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '1.05rem', marginBottom: '2px' }}>Registrar Primer Viaje (Guiado)</div>
+                  <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Te llevaremos paso a paso interactivamente.</div>
+                </div>
+              </button>
+            </div>
+            <button onClick={dismissSetup} style={{ marginTop: '20px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline' }}>No gracias, explorar por mi cuenta</button>
+          </div>
+        </div>
+      )}
+      
+      <AdminTour key={tourKeyNonce} run={runTour} setRun={setRunTour} onFinishTour={handleFinishTour} tourKey="igo_admin_tour_seen" />
+      <HelpCenter onRestartTour={() => { setTourKeyNonce(prev => prev + 1); setRunTour(true); }} />
+      <FirstTripWizard currentStep="dashboard" />
     </div>
   );
 }
 
 const QuickAccessCard = ({ icon, title, onClick, color }) => (<div onClick={onClick} style={{ background: 'white', borderRadius: '20px', padding: '15px 25px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '100px', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', transition: 'transform 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}><div style={{ color }}>{icon}</div><span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>{title}</span></div>);
-const BalanceCard = ({ title, amount, icon, color, bg }) => (<div style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}><div style={{ background: bg, padding: '8px', borderRadius: '10px', color: color }}>{icon}</div><span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem' }}>{title}</span></div><div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-main)' }}>${amount.toLocaleString()}</div></div>);
+const BalanceCard = ({ title, amount, icon, color, bg, onClick }) => (<div onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', transition: 'box-shadow 0.2s', ...((onClick ? { '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.05)' } } : {})) }} onMouseEnter={e => { if(onClick) e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)' }} onMouseLeave={e => { if(onClick) e.currentTarget.style.boxShadow = 'none' }}><div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}><div style={{ background: bg, padding: '8px', borderRadius: '10px', color: color }}>{icon}</div><span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem' }}>{title}</span></div><div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-main)' }}>${amount.toLocaleString()}</div></div>);
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px', backdropFilter: 'blur(4px)' };
 const modalContentStyle = { background: 'white', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' };
 const closeBtnStyle = { background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' };

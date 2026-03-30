@@ -117,7 +117,6 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  height: 100%;
   /* Aceleración de hardware para suavidad en móvil */
   transform: translateZ(0);
 }
@@ -199,3 +198,7 @@ body {
 .grid-responsive-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .header-flexible { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 30px; }
 .dropdown-menu-responsive { position: absolute; top: 120%; right: 0; background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); min-width: 240px; z-index: 100; overflow: hidden; padding: 8px; }
+
+/* Spin Animation para caché silencioso */
+@keyframes spin { 100% { transform: rotate(360deg); } }
+.spin-animation { animation: spin 1s linear infinite; }

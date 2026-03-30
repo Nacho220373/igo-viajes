@@ -5,6 +5,7 @@ import {
   Map, Calendar, ArrowRightCircle, Plane, Smile, Ticket, Clock, Hotel, Car, Utensils, 
   LayoutGrid, LayoutList, Settings, User, FileText, MapPin, Phone, Save, X, CheckCircle, AlertCircle, Star, MessageSquare, AlertTriangle, Ban
 } from 'lucide-react';
+import Loader from '../../components/Loader';
 
 export default function PassengerDashboard({ user }) {
   const navigate = useNavigate();
@@ -295,7 +296,7 @@ export default function PassengerDashboard({ user }) {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>Cargando información...</div>
+        <Loader message="Cargando información..." />
       ) : (
         <div className="fade-in">
             {activeTab === 'principal' && (
@@ -319,7 +320,7 @@ export default function PassengerDashboard({ user }) {
                             <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight:'700' }}>Agenda de Servicios</h3>
                             
                             {loadingServicios ? (
-                                <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>Cargando itinerario...</div>
+                                <Loader message="Cargando itinerario..." />
                             ) : serviciosAgenda.length === 0 ? (
                                 <div style={{ background: 'white', padding: '30px', borderRadius: '16px', textAlign: 'center', color: '#94a3b8', border: '1px solid #e2e8f0' }}>No tienes servicios activos para hoy en este viaje.</div>
                             ) : (
@@ -331,8 +332,13 @@ export default function PassengerDashboard({ user }) {
                                                 <div style={{ background: '#f1f5f9', padding: '12px', borderRadius: '12px', color: 'var(--primary)' }}>{getIconoServicio(s.categoriaId)}</div>
                                                 <div style={{ flex: 1, minWidth: '150px' }}>
                                                     <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize:'1rem' }}>{s.destino}</div>
-                                                    <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', flexDirection:'column', gap: '2px', marginTop: '4px' }}>
+                                                    <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', flexDirection:'column', gap: '4px', marginTop: '4px' }}>
                                                         <span style={{display:'flex', alignItems:'center', gap:'5px', fontWeight:'600'}}><Clock size={12}/> {s.fechaInicio}</span>
+                                                        {s.documentoUrl && (
+                                                            <a href={s.documentoUrl} target="_blank" rel="noreferrer" style={{display:'inline-flex', alignItems:'center', gap:'4px', background:'#eff6ff', color:'var(--primary-dark)', padding:'6px 12px', borderRadius:'8px', textDecoration:'none', fontWeight:'700', width:'fit-content', border:'1px solid #bfdbfe', fontSize:'0.75rem', marginTop:'4px'}}>
+                                                                <FileText size={12}/> Ver {s.documentos && s.documentos.length > 0 ? s.documentos[0].tipo : 'Documento'}
+                                                            </a>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>

@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { enviarPeticion } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Search, Building2, MapPin, Phone, Mail, X, ArrowLeft, Pencil, Trash2, CheckCircle, AlertCircle, LayoutGrid, LayoutList } from 'lucide-react';
+import { Plus, Search, Building2, MapPin, Phone, Mail, X, ArrowLeft, Pencil, Trash2, CheckCircle, AlertCircle, LayoutGrid, LayoutList, Database } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import Loader from '../../components/Loader';
+import BulkUploader from '../../components/BulkUploader';
+import AdminTour from '../../components/AdminTour';
+import FirstTripWizard from '../../components/FirstTripWizard';
 
 export default function AdminProveedores() {
   const { user } = useAuth();
@@ -21,6 +25,10 @@ export default function AdminProveedores() {
   const [deleteId, setDeleteId] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); 
 
+  // Bulk Upload
+  const [showModalBulk, setShowModalBulk] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
   const formInicial = { 
       id: '', nombre: '', razonSocial: '', rfc: '', pais: '', estado: '', ciudad: '', colonia: '', 
       calle: '', numExt: '', numInt: '', cp: '', correo: '',
@@ -28,6 +36,16 @@ export default function AdminProveedores() {
       telefonos: [{ tipo: 'Oficina', lada: '52', numero: '' }]
   };
   const [form, setForm] = useState(formInicial);
+
+  // === TOUR ===
+  const [runTour, setRunTour] = useState(false);
+  const stepsProveedores = [
+      { target: '.tour-prov-header', content: 'Directorio de Proveedores. Aquí se guardan los datos de Aerolíneas, Hoteles y Operadores Turísticos.', disableBeacon: true },
+      { target: '.tour-btn-carga', content: '¿Tienes un Excel con todos tus proveedores? Impórtalos haciendo clic aquí.' },
+      { target: '.tour-btn-nuevo', content: 'Para registrar un proveedor a mano, usa este botón secundario.' },
+      { target: '.tour-busqueda', content: 'Busca ágilmente a un proveedor por su Razón Social o Nombre Comercial.' },
+      { target: '.tour-lista-prov', content: 'Tu lista completa. Desde aquí podrás ver, editar e incluso eliminar su información.' }
+  ];
 
   useEffect(() => {
     cargarDatos();
@@ -37,6 +55,8 @@ export default function AdminProveedores() {
         setShowModal(true);
         navigate(location.pathname, { replace: true, state: {} });
     }
+    const tourSeen = localStorage.getItem('igo_admin_tour_proveedores');
+    if (!tourSeen) setRunTour(true);
   }, []);
 
   const cargarDatos = async () => {
@@ -87,6 +107,26 @@ export default function AdminProveedores() {
   
   const showAlert = (title, msg, type = 'error') => setCustomAlert({ show: true, title, msg, type });
   const closeAlert = () => setCustomAlert({ ...customAlert, show: false });
+
+  const handleUploadMasivo = async (parsedData, validationErrors) => {
+    setIsUploading(true);
+    const payload = { accion: 'procesarUploadMasivo', datos: parsedData, erroresIgnorados: validationErrors };
+    try {
+        const respuesta = await enviarPeticion(payload);
+        if (respuesta.exito) {
+            setShowModalBulk(false);
+            cargarDatos();
+            showAlert("Importación Exitosa", respuesta.mensaje || "Archivos importados", "success");
+        } else {
+            showAlert("Error al procesar subida", respuesta.error);
+        }
+    } catch (error) {
+        showAlert("Error de red", "No se pudo comunicar con el servidor.");
+    } finally {
+        setIsUploading(false);
+    }
+  };
+
   const getNombrePais = (id) => paises.find(p => p.id == id)?.nombre || id;
   const filtrados = proveedores.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || (p.razonSocial && p.razonSocial.toLowerCase().includes(busqueda.toLowerCase())));
 
@@ -96,25 +136,26 @@ export default function AdminProveedores() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
              <button onClick={() => navigate('/')} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}><ArrowLeft size={20} /></button>
-             <div><h1 style={{ fontSize: '1.8rem', color: 'var(--primary-dark)', margin: 0, fontWeight: '800' }}>Proveedores</h1><p style={{ color: '#64748b', margin: '0', fontSize: '0.9rem' }}>Aerolíneas, Hoteles y Servicios</p></div>
+             <div className="tour-prov-header"><h1 style={{ fontSize: '1.8rem', color: 'var(--primary-dark)', margin: 0, fontWeight: '800' }}>Proveedores</h1><p style={{ color: '#64748b', margin: '0', fontSize: '0.9rem' }}>Aerolíneas, Hoteles y Servicios</p></div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ background: '#f1f5f9', padding: '4px', borderRadius: '12px', display: 'flex', gap:'4px' }}>
                 <button onClick={() => setViewMode('grid')} style={{ padding: '8px', border: 'none', background: viewMode === 'grid' ? 'white' : 'transparent', borderRadius: '8px', color: viewMode === 'grid' ? 'var(--primary)' : '#94a3b8', cursor: 'pointer', display:'flex', boxShadow: viewMode==='grid'?'0 2px 5px rgba(0,0,0,0.05)':'' }}><LayoutGrid size={18}/></button>
                 <button onClick={() => setViewMode('list')} style={{ padding: '8px', border: 'none', background: viewMode === 'list' ? 'white' : 'transparent', borderRadius: '8px', color: viewMode === 'list' ? 'var(--primary)' : '#94a3b8', cursor: 'pointer', display:'flex', boxShadow: viewMode==='list'?'0 2px 5px rgba(0,0,0,0.05)':'' }}><LayoutList size={18}/></button>
             </div>
-            <button onClick={abrirModalCrear} className="btn-primary" style={{ width: 'auto', padding: '10px 20px', borderRadius: '50px' }}><Plus size={18} /> Nuevo Proveedor</button>
+            <button onClick={() => setShowModalBulk(true)} className="btn-secondary tour-btn-carga" style={{ width: 'auto', padding: '10px 20px', borderRadius: '50px', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', fontWeight: '600' }}><Database size={18} /> Carga Masiva</button>
+            <button onClick={abrirModalCrear} className="btn-primary tour-btn-nuevo" style={{ width: 'auto', padding: '10px 20px', borderRadius: '50px' }}><Plus size={18} /> Nuevo Proveedor</button>
         </div>
       </div>
 
-      <div style={{ position: 'relative', marginBottom: '25px', maxWidth: '600px' }}><Search size={20} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} /><input type="text" placeholder="Buscar por nombre o razón social..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ width: '100%', padding: '16px 16px 16px 48px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }} /></div>
+      <div className="tour-busqueda" style={{ position: 'relative', marginBottom: '25px', maxWidth: '600px' }}><Search size={20} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} /><input type="text" placeholder="Buscar por nombre o razón social..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ width: '100%', padding: '16px 16px 16px 48px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }} /></div>
 
-      {loading ? <div style={{textAlign:'center', padding:'40px', color:'#94a3b8'}}>Cargando directorio...</div> : (
-        <div style={{ 
+      {loading ? <Loader message="Cargando directorio..." /> : (
+        <div className="tour-lista-prov" style={{ 
             display: viewMode === 'grid' ? 'grid' : 'flex', 
             gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(320px, 1fr))' : 'none', 
             flexDirection: viewMode === 'grid' ? 'row' : 'column',
-            gap: '20px', alignItems: 'start' 
+            gap: '20px', alignItems: viewMode === 'grid' ? 'start' : 'stretch' 
         }}>
           {filtrados.map(p => (
             <div key={p.id} className="dashboard-card" style={{ padding: '24px', height: 'auto', display: 'flex', flexDirection: viewMode === 'list' ? 'row' : 'column', alignItems: viewMode === 'list' ? 'center' : 'stretch', gap: viewMode === 'list' ? '20px' : '0' }}>
@@ -211,9 +252,26 @@ export default function AdminProveedores() {
         </div>
       )}
       
+      {/* BULK UPLOAD MODAL */}
+      {showModalBulk && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
+           <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '800px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden' }}>
+               <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Importación Masiva Integrada</h2>
+                  <button onClick={() => setShowModalBulk(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><X size={18}/></button>
+               </div>
+               <div style={{ padding: '24px', maxHeight: '80vh', overflowY: 'auto', background: '#f8fafc' }}>
+                  <BulkUploader onUpload={handleUploadMasivo} isProcessing={isUploading} />
+               </div>
+           </div>
+        </div>
+      )}
+      
       {/* Alertas y Confirmación */}
       {showDeleteConfirm && (<div style={modalOverlayStyle}><div style={{...modalContentStyle, maxWidth:'400px', maxHeight:'auto', padding:'30px', textAlign:'center'}}><Trash2 size={40} color="#ef4444" style={{margin:'0 auto 10px'}}/><h3>¿Eliminar Proveedor?</h3><p style={{color:'#64748b'}}>Esta acción es permanente.</p><div style={{display:'flex', gap:'10px', marginTop:'20px'}}><button onClick={()=>setShowDeleteConfirm(false)} style={{flex:1, padding:'10px', border:'1px solid #ccc', borderRadius:'20px', background:'white'}}>Cancelar</button><button onClick={confirmarEliminar} style={{flex:1, padding:'10px', border:'none', borderRadius:'20px', background:'#ef4444', color:'white'}}>Eliminar</button></div></div></div>)}
       {customAlert.show && (<div style={modalOverlayStyle}><div style={{...modalContentStyle, maxWidth:'400px', maxHeight:'auto', padding:'30px', textAlign:'center'}}><div style={{ margin:'0 auto 15px', color: customAlert.type==='success'?'#10b981':'#ef4444' }}>{customAlert.type==='success' ? <CheckCircle size={40}/> : <AlertCircle size={40}/>}</div><h3>{customAlert.title}</h3><p style={{color:'#64748b'}}>{customAlert.msg}</p><button onClick={closeAlert} className="btn-primary" style={{marginTop:'20px', width:'100%'}}>Entendido</button></div></div>)}
+      <AdminTour run={runTour} setRun={setRunTour} steps={stepsProveedores} tourKey="igo_admin_tour_proveedores" />
+      <FirstTripWizard currentStep="proveedores" onOpenModal={abrirModalCrear} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { enviarPeticion } from '../services/api';
 import ClientDashboard from './client/ClientDashboard';
 import PassengerDashboard from './passenger/PassengerDashboard';
 import AdminDashboardContent from './admin/AdminDashboardContent'; 
+import Loader from '../components/Loader';
 
 // Componente Interno: Selector de Perfiles
 const ProfileSwitcher = () => {
@@ -150,7 +151,7 @@ export default function Dashboard() {
       setCreatingPassenger(false);
   };
 
-  if (!user || !activeProfile) return <div style={{textAlign:'center', padding:'50px', color:'#64748b'}}>Cargando perfil...</div>;
+  if (!user || !activeProfile) return <Loader message="Cargando perfil..." />;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -162,7 +163,7 @@ export default function Dashboard() {
       }}>
          {/* BOTÓN DE AUTO-CREACIÓN DE PERFIL PASAJERO */}
          <div>
-            {!hasPassengerProfile && (
+            {(!hasPassengerProfile && activeProfile.tipo !== 'Administrador') && (
                 <button 
                     onClick={solicitarActivacion}
                     disabled={creatingPassenger}

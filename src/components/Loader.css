@@ -1,0 +1,60 @@
+.airplane-loader-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 15px;
+  width: 100%;
+}
+
+.airplane-loader-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 60px;
+  height: 60px;
+  position: relative;
+  background-color: #f1f5f9; /* slate-100 */
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.airplane-icon {
+  animation: fly-airplane 2.5s ease-in-out infinite;
+  color: var(--primary, #3b82f6);
+}
+
+@keyframes fly-airplane {
+  0% {
+    transform: translate(-40px, 40px) rotate(-15deg) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(40px, -40px) rotate(15deg) scale(0.6);
+    opacity: 0;
+  }
+}
+
+.airplane-loader-message {
+  font-weight: 500;
+  color: #64748b; /* slate-500 */
+  font-size: 0.95rem;
+  animation: pulse-text 2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
