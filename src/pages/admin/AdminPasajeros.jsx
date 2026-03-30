@@ -124,13 +124,9 @@ export default function AdminPasajeros() {
   };
 
   const handleEditar = (p) => {
-      let fechaInput = '';
-      if(p.fechaNacimiento && p.fechaNacimiento.includes('/')) {
-          const [d, m, y] = p.fechaNacimiento.split('/');
-          fechaInput = `${y}-${m}-${d}`; 
-      } else if (p.fechaNacimiento && p.fechaNacimiento.includes('-')) {
-          fechaInput = p.fechaNacimiento;
-      }
+      // Tomamos la fecha directamente, ya que el backend ahora asegura formato yyyy-MM-dd
+      // Usamos .split('T')[0] como doble seguridad por si el string trae información de horas
+      let fechaInput = p.fechaNacimiento ? p.fechaNacimiento.split('T')[0] : '';
       
       // Recuperar teléfonos si existen, si no, usar el campo plano antiguo
       let listaTelefonos = p.telefonos && p.telefonos.length > 0 
